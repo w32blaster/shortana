@@ -3,7 +3,9 @@ module github.com/w32blaster/shortana
 go 1.13
 
 require (
+	github.com/asdine/storm/v3 v3.2.1
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-chi/httprate v0.4.0
-	go.etcd.io/bbolt v1.3.5
+	go.etcd.io/bbolt v1.3.4
+	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect
 )

@@ -1,0 +1,30 @@
+<html>
+    <head>
+        <title>Shortana Index</title>
+    </head>
+    <body>
+
+        <h1>Shortana list</h1>
+
+        {{ if .WrongUrl }}
+            Are you lost? We can't find the url {{.Hostname}}{{.WrongUrl}}
+        {{ end }}
+
+        {{ if .Error }}
+            <p>
+                Error: {{ .error }}
+            </p>
+        {{ else }}
+            <ul>
+                {{range .Links}}
+                    {{if .IsPublic}}
+                        <li>
+                            <a href="{{.FullUrl}}">{{$.Hostname}}/{{.ShortUrl}}</a>
+                        </li>
+                    {{end}}
+                {{end}}
+            </ul>
+        {{ end }}
+
+    </body>
+</html>
