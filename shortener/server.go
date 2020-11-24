@@ -28,18 +28,31 @@ type (
 
 func makeRequestProcessor(db *db.Database) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte("fdfd"))
+		shortUrl := chi.URLParam(req, "shortUrl")
+		if len(shortUrl) == 0 {
+			w.Write([]byte("Short URL is not provided"))
+			return
+		}
+
+		url, err := db.GetUrl(shortUrl)
+		if err != nil {
+			printIndex(db, w, shortUrl)
+		}
+
+		w.Header().Add("Location", url.FullUrl)
+		w.WriteHeader(http.StatusMovedPermanently)
 	}
 }
 
 // printIndex prints page with available public (!) links in case if short URL was wrong
-func printIndex(db *db.Database, w http.ResponseWriter) {
+func printIndex(db *db.Database, w http.ResponseWriter, wrongUrl string) {
 	w.Header().Add("Content-Type", "text/html; charset=utf-8")
 	links, err := db.GetAll()
 	data := AllLinksData{
 		Links:    links,
 		Error:    err,
 		Hostname: "http://localhost:3000",
+		WrongUrl: wrongUrl,
 	}
 
 	if err = tmplIndex.Execute(w, data); err != nil {
@@ -57,9 +70,9 @@ func StartServer(db *db.Database) {
 	r.Use(httprate.LimitByIP(100, 1*time.Minute))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		printIndex(db, w)
+		printIndex(db, w, "")
 	})
-	r.Get("/*", makeRequestProcessor(db))
+	r.Get("/{shortUrl}", makeRequestProcessor(db))
 
 	http.ListenAndServe(":3000", r)
 }

@@ -27,3 +27,9 @@ func (d Database) GetAll() ([]ShortURL, error) {
 	err := d.db.All(&shortUrls)
 	return shortUrls, err
 }
+
+func (d Database) GetUrl(suffix string) (ShortURL, error) {
+	var shortUrl ShortURL
+	err := d.db.One("ShortUrl", suffix, &shortUrl)
+	return shortUrl, err
+}
