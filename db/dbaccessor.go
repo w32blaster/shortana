@@ -14,11 +14,12 @@ func Init(bdb *storm.DB) *Database {
 	}
 }
 
-func (d Database) SaveShortUrl(shortSuffix, fullTargetAddress string, isPublic bool) error {
+func (d Database) SaveShortUrl(shortSuffix, fullTargetAddress, description string, isPublic bool) error {
 	return d.db.Save(&ShortURL{
-		ShortUrl: shortSuffix,
-		FullUrl:  fullTargetAddress,
-		IsPublic: isPublic,
+		ShortUrl:    shortSuffix,
+		FullUrl:     fullTargetAddress,
+		Description: description,
+		IsPublic:    isPublic,
 	})
 }
 
