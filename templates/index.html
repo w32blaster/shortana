@@ -12,34 +12,48 @@
         <!-- Milligram CSS -->
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.css">
 
+        <style type="text/css">
+            .error {
+                background: #9b4dca;
+                color: #fff;
+                padding: 10px 30px;
+                border-radius: 15px;
+                margin: 30px 10px;
+            }
+        </style>
+
     </head>
     <body>
-        <div class="container">
+        <main class="wrapper">
+            <div class="container">
 
-            <h1>Shortana list</h1>
+                <h1>Shortana list</h1>
 
-            {{ if .WrongUrl }}
-                Are you lost? We can't find the url {{$.Hostname}}/{{.WrongUrl}}.
-                All available URLs are listed below
-            {{ end }}
+                {{ if .WrongUrl }}
+                    <div class="error">
+                    Are you lost? We can't find the url {{$.Hostname}}/{{.WrongUrl}}.
+                    All available URLs are listed below
+                    </div>
+                {{ end }}
 
-            {{ if .Error }}
-                <div class="container">
-                    <p>
-                        Error: {{ .error }}
-                    </p>
-                </div>
-            {{ else }}
-                <ul>
-                    {{range .Links}}
-                        {{if .IsPublic}}
-                            <li>
-                                <a href="{{.FullUrl}}">{{$.Hostname}}/{{.ShortUrl}}</a> - {{ .Description }}
-                            </li>
+                {{ if .Error }}
+                    <div class="container">
+                        <p>
+                            Error: {{ .error }}
+                        </p>
+                    </div>
+                {{ else }}
+                    <ul>
+                        {{range .Links}}
+                            {{if .IsPublic}}
+                                <li>
+                                    <a href="{{.FullUrl}}">{{$.Hostname}}/{{.ShortUrl}}</a> - {{ .Description }}
+                                </li>
+                            {{end}}
                         {{end}}
-                    {{end}}
-                </ul>
-            {{ end }}
-        </div>
+                    </ul>
+                {{ end }}
+            </div>
+        </main>
     </body>
 </html>
