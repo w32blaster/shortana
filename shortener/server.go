@@ -1,6 +1,8 @@
 package shortener
 
 import (
+	"fmt"
+	"github.com/w32blaster/shortana/stats"
 	"html/template"
 	"log"
 	"net/http"
@@ -26,7 +28,7 @@ type (
 	}
 )
 
-func makeRequestProcessor(db *db.Database, hostname string) func(http.ResponseWriter, *http.Request) {
+func makeRequestProcessor(db *db.Database, stats *stats.Statistics, hostname string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		shortUrl := chi.URLParam(req, "shortUrl")
 		if len(shortUrl) == 0 {
@@ -39,6 +41,9 @@ func makeRequestProcessor(db *db.Database, hostname string) func(http.ResponseWr
 			printIndex(db, w, hostname, shortUrl)
 			return
 		}
+
+		fmt.Println("Process " + shortUrl)
+		go stats.ProcessRequest(req, shortUrl)
 
 		w.Header().Add("Location", url.FullUrl)
 		w.WriteHeader(http.StatusMovedPermanently)
@@ -56,24 +61,28 @@ func printIndex(db *db.Database, w http.ResponseWriter, hostname, wrongUrl strin
 		WrongUrl: wrongUrl,
 	}
 
+	fmt.Println(db.GetAllStatistics())
+
 	if err = tmplIndex.Execute(w, data); err != nil {
 		log.Println("Error while rendering page: " + err.Error())
 	}
 }
 
 // StartServer starts the server that handles all the requests
-func StartServer(db *db.Database, host string) {
+func StartServer(db *db.Database, stats *stats.Statistics, host string) {
 
 	r := chi.NewRouter()
 
+	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
+	r.Use(middleware.NoCache)
 	r.Use(middleware.Recoverer)
 	r.Use(httprate.LimitByIP(100, 1*time.Minute))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		printIndex(db, w, host, "")
 	})
-	r.Get("/{shortUrl}", makeRequestProcessor(db, host))
+	r.Get("/{shortUrl}", makeRequestProcessor(db, stats, host))
 
 	http.ListenAndServe(":3000", r)
 }

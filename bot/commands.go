@@ -2,6 +2,7 @@ package bot
 
 import (
 	"github.com/w32blaster/shortana/db"
+	"github.com/w32blaster/shortana/stats"
 	"log"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ type Command struct {
 	db       *db.Database
 	bot      *tgbotapi.BotAPI
 	hostname string
+	stats    *stats.Statistics
 }
 
 func (c Command) NotAllowedToSpeak(message *tgbotapi.Message) {

@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/w32blaster/shortana/bot"
 	"time"
 
+	"github.com/oschwald/geoip2-golang"
+	"github.com/w32blaster/shortana/bot"
 	"github.com/w32blaster/shortana/db"
 	"github.com/w32blaster/shortana/shortener"
+	"github.com/w32blaster/shortana/stats"
 
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/codec/msgpack"
@@ -16,29 +18,37 @@ import (
 
 // Opts command line arguments
 type Opts struct {
-	Port           int    `short:"p" long:"port" description:"The port for the bot. The default is 8444" default:"8444"`
-	Host           string `short:"h" long:"host" description:"The full hostname for the Shortana. Default is localhost" default:"http://localhost:3000"`
-	BotToken       string `short:"b" long:"bot-token" description:"The Bot-Token. As long as it is the sensitive data, we can't keep it in Github" required:"true"`
-	AcceptFromUser int    `short:"u" long:"accept-from-user" description:"Telegram User Id bot can only speak to. By default it can talk to everyone" required:"false"`
-	IsDebug        bool   `short:"d" long:"debug" description:"Is it debug? Default is true. Disable it for production."`
+	Port              int    `short:"p" long:"port" description:"The port for the bot. The default is 8444" default:"8444"`
+	Host              string `short:"h" long:"host" description:"The full hostname for the Shortana. Default is localhost" default:"http://localhost:3000"`
+	BotToken          string `short:"b" long:"bot-token" description:"The Bot-Token. As long as it is the sensitive data, we can't keep it in Github" required:"true"`
+	AcceptFromUser    int    `short:"u" long:"accept-from-user" description:"Telegram User Id bot can only speak to. By default it can talk to everyone" required:"false"`
+	IsDebug           bool   `short:"d" long:"debug" description:"Is it debug? Default is true. Disable it for production."`
+	GeoIpDatabasePath string `short:"g" long:"geoip-path" description:"The path to GeoLite database mmbd" default:"GeoLite2-City.mmdb"`
 }
 
 func main() {
 	fmt.Println("Start the Shortana")
 
+	// parse flags
 	var opts = Opts{}
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		panic(err)
 	}
 
-	// config:
-	// - hostname
+	// open the GeoIP database
+	geoIPdb, err := geoip2.Open(opts.GeoIpDatabasePath)
+	if err != nil {
+		panic(err)
+	}
+	defer geoIPdb.Close()
 
+	// Open Storm DB
 	boltdb, err := storm.Open("shortana.db", storm.Codec(msgpack.Codec), storm.BoltOptions(0600, &bbolt.Options{Timeout: 5 * time.Second}))
 	if err != nil {
 		panic(err)
 	}
+	defer boltdb.Close()
 
 	database := db.Init(boltdb)
 
@@ -49,9 +59,11 @@ func main() {
 	saveDummyLink(database, "daxi", "https://www.daxi.re", "Daxi.re", false)
 	fmt.Println("Dummy data inserted")
 
-	go shortener.StartServer(database, opts.Host)
+	statistics := stats.New(database, geoIPdb)
 
-	bot.Start(database, opts.BotToken, opts.Port, opts.AcceptFromUser, opts.Host, opts.IsDebug)
+	go shortener.StartServer(database, statistics, opts.Host)
+
+	bot.Start(database, statistics, opts.BotToken, opts.Port, opts.AcceptFromUser, opts.Host, opts.IsDebug)
 }
 
 func saveDummyLink(database *db.Database, suffix, targetAddress, descr string, isPublic bool) {

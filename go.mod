@@ -8,6 +8,7 @@ require (
 	github.com/go-chi/httprate v0.4.0
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible
 	github.com/jessevdk/go-flags v1.4.0
+	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
 	go.etcd.io/bbolt v1.3.4
 	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect
