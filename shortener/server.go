@@ -26,7 +26,7 @@ type (
 	}
 )
 
-func makeRequestProcessor(db *db.Database) func(http.ResponseWriter, *http.Request) {
+func makeRequestProcessor(db *db.Database, hostname string) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		shortUrl := chi.URLParam(req, "shortUrl")
 		if len(shortUrl) == 0 {
@@ -36,7 +36,8 @@ func makeRequestProcessor(db *db.Database) func(http.ResponseWriter, *http.Reque
 
 		url, err := db.GetUrl(shortUrl)
 		if err != nil {
-			printIndex(db, w, shortUrl)
+			printIndex(db, w, hostname, shortUrl)
+			return
 		}
 
 		w.Header().Add("Location", url.FullUrl)
@@ -45,13 +46,13 @@ func makeRequestProcessor(db *db.Database) func(http.ResponseWriter, *http.Reque
 }
 
 // printIndex prints page with available public (!) links in case if short URL was wrong
-func printIndex(db *db.Database, w http.ResponseWriter, wrongUrl string) {
+func printIndex(db *db.Database, w http.ResponseWriter, hostname, wrongUrl string) {
 	w.Header().Add("Content-Type", "text/html; charset=utf-8")
 	links, err := db.GetAll()
 	data := AllLinksData{
 		Links:    links,
 		Error:    err,
-		Hostname: "http://localhost:3000",
+		Hostname: hostname,
 		WrongUrl: wrongUrl,
 	}
 
@@ -61,7 +62,7 @@ func printIndex(db *db.Database, w http.ResponseWriter, wrongUrl string) {
 }
 
 // StartServer starts the server that handles all the requests
-func StartServer(db *db.Database) {
+func StartServer(db *db.Database, host string) {
 
 	r := chi.NewRouter()
 
@@ -70,9 +71,9 @@ func StartServer(db *db.Database) {
 	r.Use(httprate.LimitByIP(100, 1*time.Minute))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		printIndex(db, w, "")
+		printIndex(db, w, host, "")
 	})
-	r.Get("/{shortUrl}", makeRequestProcessor(db))
+	r.Get("/{shortUrl}", makeRequestProcessor(db, host))
 
 	http.ListenAndServe(":3000", r)
 }

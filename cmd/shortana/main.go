@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/w32blaster/shortana/bot"
 	"time"
 
 	"github.com/w32blaster/shortana/db"
@@ -9,11 +10,26 @@ import (
 
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/codec/msgpack"
+	flags "github.com/jessevdk/go-flags"
 	"go.etcd.io/bbolt"
 )
 
+// Opts command line arguments
+type Opts struct {
+	Port           int    `short:"p" long:"port" description:"The port for the bot. The default is 8444" default:"8444"`
+	Host           string `short:"h" long:"host" description:"The full hostname for the Shortana. Default is localhost" default:"http://localhost:3000"`
+	BotToken       string `short:"b" long:"bot-token" description:"The Bot-Token. As long as it is the sensitive data, we can't keep it in Github" required:"true"`
+	AcceptFromUser int    `short:"u" long:"accept-from-user" description:"Telegram User Id bot can only speak to. By default it can talk to everyone" required:"false"`
+}
+
 func main() {
 	fmt.Println("Start the Shortana")
+
+	var opts = Opts{}
+	_, err := flags.Parse(&opts)
+	if err != nil {
+		panic(err)
+	}
 
 	// config:
 	// - hostname
@@ -32,7 +48,9 @@ func main() {
 	saveDummyLink(database, "daxi", "https://www.daxi.re", "Daxi.re", false)
 	fmt.Println("Dummy data inserted")
 
-	shortener.StartServer(database)
+	go shortener.StartServer(database, opts.Host)
+
+	bot.Start(database, opts.BotToken, opts.Port, opts.AcceptFromUser, opts.Host)
 }
 
 func saveDummyLink(database *db.Database, suffix, targetAddress, descr string, isPublic bool) {
