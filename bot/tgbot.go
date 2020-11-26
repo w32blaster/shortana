@@ -9,14 +9,14 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-func Start(database *db.Database, botToken string, port, acceptFromUser int, hostname string) {
+func Start(database *db.Database, botToken string, port, acceptFromUser int, hostname string, isDebug bool) {
 
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		panic("Bot doesn't work. Reason: " + err.Error())
 	}
 
-	bot.Debug = true
+	bot.Debug = isDebug
 
 	cmd := Command{
 		db:       database,
