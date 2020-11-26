@@ -19,3 +19,8 @@ URL shortener managed by Telegram bot
     for the local development it is the Ngrock URL, such as https://blablabla.eu.ngrok.io 
 6. now, if you print something in your bot, the request will be propagated to your locally running app
 
+
+# Credits
+
+This product includes GeoLite2 data created by MaxMind, available from
+https://www.maxmind.com.

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oschwald/geoip2-golang"
 	"github.com/w32blaster/shortana/bot"
 	"github.com/w32blaster/shortana/db"
 	"github.com/w32blaster/shortana/shortener"
@@ -12,18 +11,19 @@ import (
 
 	"github.com/asdine/storm/v3"
 	"github.com/asdine/storm/v3/codec/msgpack"
-	flags "github.com/jessevdk/go-flags"
+	"github.com/caarlos0/env"
+	"github.com/oschwald/geoip2-golang"
 	"go.etcd.io/bbolt"
 )
 
-// Opts command line arguments
 type Opts struct {
-	Port              int    `short:"p" long:"port" description:"The port for the bot. The default is 8444" default:"8444"`
-	Host              string `short:"h" long:"host" description:"The full hostname for the Shortana. Default is localhost" default:"http://localhost:3000"`
-	BotToken          string `short:"b" long:"bot-token" description:"The Bot-Token. As long as it is the sensitive data, we can't keep it in Github" required:"true"`
-	AcceptFromUser    int    `short:"u" long:"accept-from-user" description:"Telegram User Id bot can only speak to. By default it can talk to everyone" required:"false"`
-	IsDebug           bool   `short:"d" long:"debug" description:"Is it debug? Default is true. Disable it for production."`
-	GeoIpDatabasePath string `short:"g" long:"geoip-path" description:"The path to GeoLite database mmbd" default:"GeoLite2-City.mmdb"`
+	Port              int    `env:"PORT" envDefault:"8444"`
+	Host              string `env:"HOST" envDefault:"http://localhost:3000"`
+	IsDebug           bool   `env:"IS_DEBUG"`
+	BotToken          string `env:"BOT_TOKEN,required"`
+	AcceptFromUser    int    `env:"ACCEPT_FROM_USER"`
+	GeoIpDatabasePath string `env:"GEOIP_DB_PATH" envDefault:"GeoLite2-City.mmdb"`
+	MaxmindLicenseKey string `env:"MAXMIND_LICENSE_KEY,required"`
 }
 
 func main() {
@@ -31,9 +31,8 @@ func main() {
 
 	// parse flags
 	var opts = Opts{}
-	_, err := flags.Parse(&opts)
-	if err != nil {
-		panic(err)
+	if err := env.Parse(&opts); err != nil {
+		panic("Can't parse ENV VARS: " + err.Error())
 	}
 
 	// open the GeoIP database
@@ -51,6 +50,7 @@ func main() {
 	defer boltdb.Close()
 
 	database := db.Init(boltdb)
+	statistics := stats.New(database, geoIPdb)
 
 	// for development only
 	saveDummyLink(database, "STORM", "https://github.com/asdine/storm#options", "Storm project at GitHub", true)
@@ -59,10 +59,10 @@ func main() {
 	saveDummyLink(database, "daxi", "https://www.daxi.re", "Daxi.re", false)
 	fmt.Println("Dummy data inserted")
 
-	statistics := stats.New(database, geoIPdb)
-
+	// Run web server
 	go shortener.StartServer(database, statistics, opts.Host)
 
+	// Run Telegram bot
 	bot.Start(database, statistics, opts.BotToken, opts.Port, opts.AcceptFromUser, opts.Host, opts.IsDebug)
 }
 
