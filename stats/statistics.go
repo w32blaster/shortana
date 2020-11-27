@@ -27,9 +27,16 @@ func (s Statistics) ProcessRequest(req *http.Request, requestedUrl string) {
 		ipAddress = req.RemoteAddr
 	}
 
-	countryCode, countryName, city, err := s.geoIP.GetGeoStatsForTheIP(ipAddress)
-	if err != nil {
-		log.Println("ERROR! Can't get GeoIP data. Reason: " + err.Error())
+	var countryCode, countryName, city string
+	var err error
+
+	if s.geoIP.IsReady() {
+		countryCode, countryName, city, err = s.geoIP.GetGeoStatsForTheIP(ipAddress)
+		if err != nil {
+			log.Println("ERROR! Can't get GeoIP data. Reason: " + err.Error())
+		}
+	} else {
+		log.Println("GeoIP database is not ready yet, so the current view will be saved without GEO data :(")
 	}
 
 	err = s.db.SaveStatisticForOneView(ipAddress, requestedUrl, countryCode, countryName, city)

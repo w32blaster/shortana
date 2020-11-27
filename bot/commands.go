@@ -40,8 +40,12 @@ func (c Command) ProcessCommands(message *tgbotapi.Message) {
 	case "list":
 		renderShortenedURLsList(c.bot, chatID, c.db, c.hostname)
 
-	case "download-database":
-		if err := c.geoIP.DownloadGeoIPDatabase(); err != nil {
+	case "download":
+		fnOnUpdate := func(msg string) {
+			msg = strings.Replace(msg, "/", " ", -1)
+			sendMsg(c.bot, chatID, msg)
+		}
+		if err := c.geoIP.DownloadGeoIPDatabase(fnOnUpdate); err != nil {
 			sendMsg(c.bot, chatID, "Database update failed, reason is "+err.Error())
 		}
 		sendMsg(c.bot, chatID, "Yay! Database was updated properly")

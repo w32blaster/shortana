@@ -9,19 +9,24 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/cavaliercoder/grab"
 	"github.com/oschwald/geoip2-golang"
 )
 
 const (
-	fileName = "GeoLite2-City.mmdb"
+	fileName   = "GeoLite2-City.mmdb"
+	tmpTarBall = "/tmp/GeoLite2-City.tar"
 )
+
+var m sync.Mutex
 
 type GeoIP struct {
 	geoip      *geoip2.Reader
 	geoipPath  string
 	licenseKey string
+	isReady    bool
 }
 
 func New(path, license string) *GeoIP {
@@ -36,6 +41,7 @@ func New(path, license string) *GeoIP {
 		geoip:      geoIPdb,
 		geoipPath:  path,
 		licenseKey: license,
+		isReady:    false,
 	}
 }
 
@@ -44,7 +50,6 @@ func (g GeoIP) Close() {
 }
 
 func (g GeoIP) reconnectToDatabase() {
-	g.geoip.Close()
 	geoIPdb, err := geoip2.Open(g.geoipPath + "/" + fileName)
 	if err != nil {
 		panic(err)
@@ -52,7 +57,13 @@ func (g GeoIP) reconnectToDatabase() {
 	g.geoip = geoIPdb
 }
 
+// IsReady returns TRUE when a database exists, downloaded, opened and ready to use
+func (g GeoIP) IsReady() bool {
+	return g.isReady
+}
+
 func (g GeoIP) GetGeoStatsForTheIP(ipAddress string) (string, string, string, error) {
+
 	if len(ipAddress) == 0 {
 		return "unknown", "unknown", "unknown", errors.New("IP Address of visitor is unknown")
 	}
@@ -66,29 +77,65 @@ func (g GeoIP) GetGeoStatsForTheIP(ipAddress string) (string, string, string, er
 	return record.Country.IsoCode, record.Country.Names["en"], record.City.Names["en"], nil
 }
 
-func (g GeoIP) DownloadGeoIPDatabase() error {
+func (g GeoIP) DownloadGeoIPDatabase(fnUpdate func(msg string)) error {
 
+	fnUpdate("start downloading")
 	downloadURL := fmt.Sprintf("https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=%s&suffix=tar.gz", g.licenseKey)
-	resp, err := grab.Get(g.geoipPath, downloadURL)
+	resp, err := grab.Get("/tmp", downloadURL)
 	if err != nil {
 		return err
 	}
 
-	if err := unGzip(g.geoipPath+"/"+resp.Filename, g.geoipPath+"/geocityLite.tar"); err != nil {
+	fnUpdate("Downloaded")
+	folderName := resp.Filename[:len(resp.Filename)-7] // trim the extension ".tar.gz"
+	oldDatabase := g.geoipPath + "/geocityLite-old.mmdb"
+
+	if err := unGzip(resp.Filename, tmpTarBall); err != nil {
 		return err
 	}
 
-	err = os.Rename(g.geoipPath+"/"+fileName, g.geoipPath+"/geocityLite-old.mmdb")
-	if err != nil {
+	fnUpdate("Downloaded. Untar it")
+	if err := untar(tmpTarBall, "/tmp"); err != nil {
 		return err
 	}
 
-	if err := untar(g.geoipPath+"/geocityLite.tar", g.geoipPath+"/"+fileName); err != nil {
+	m.Lock()
+	g.isReady = false
+	m.Unlock()
+
+	g.Close()
+
+	// rename old database (just in case)
+	if err := os.Rename(g.geoipPath+"/"+fileName, g.geoipPath+"/geocityLite-old.mmdb"); err != nil {
+		return err
+	}
+
+	// copy freshly downloaded database to our working directory
+	fnUpdate("replace database")
+	if err := os.Rename(folderName+"/"+fileName, g.geoipPath+"/"+fileName); err != nil {
 		return err
 	}
 
 	g.reconnectToDatabase()
 
+	if err := os.RemoveAll(folderName); err != nil {
+		return err
+	}
+	if err := os.Remove(tmpTarBall); err != nil {
+		return err
+	}
+	if err := os.Remove(resp.Filename); err != nil {
+		return err
+	}
+	if err := os.Remove(oldDatabase); err != nil {
+		return err
+	}
+
+	m.Lock()
+	g.isReady = true
+	m.Unlock()
+
+	fnUpdate("Ready")
 	return nil
 }
 
