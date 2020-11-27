@@ -2,18 +2,13 @@ package main
 
 import (
 	"fmt"
-	"time"
-
 	"github.com/w32blaster/shortana/bot"
 	"github.com/w32blaster/shortana/db"
+	"github.com/w32blaster/shortana/geoip"
 	"github.com/w32blaster/shortana/shortener"
 	"github.com/w32blaster/shortana/stats"
 
-	"github.com/asdine/storm/v3"
-	"github.com/asdine/storm/v3/codec/msgpack"
 	"github.com/caarlos0/env"
-	"github.com/oschwald/geoip2-golang"
-	"go.etcd.io/bbolt"
 )
 
 type Opts struct {
@@ -22,7 +17,7 @@ type Opts struct {
 	IsDebug           bool   `env:"IS_DEBUG"`
 	BotToken          string `env:"BOT_TOKEN,required"`
 	AcceptFromUser    int    `env:"ACCEPT_FROM_USER"`
-	GeoIpDatabasePath string `env:"GEOIP_DB_PATH" envDefault:"GeoLite2-City.mmdb"`
+	GeoIpDatabasePath string `env:"GEOIP_DB_PATH" envDefault:"."`
 	MaxmindLicenseKey string `env:"MAXMIND_LICENSE_KEY,required"`
 }
 
@@ -36,21 +31,14 @@ func main() {
 	}
 
 	// open the GeoIP database
-	geoIPdb, err := geoip2.Open(opts.GeoIpDatabasePath)
-	if err != nil {
-		panic(err)
-	}
-	defer geoIPdb.Close()
+	geoIP := geoip.New(opts.GeoIpDatabasePath, opts.MaxmindLicenseKey)
+	defer geoIP.Close()
 
-	// Open Storm DB
-	boltdb, err := storm.Open("shortana.db", storm.Codec(msgpack.Codec), storm.BoltOptions(0600, &bbolt.Options{Timeout: 5 * time.Second}))
-	if err != nil {
-		panic(err)
-	}
-	defer boltdb.Close()
+	// Init BoltDB database
+	database := db.Init()
+	defer database.Close()
 
-	database := db.Init(boltdb)
-	statistics := stats.New(database, geoIPdb)
+	statistics := stats.New(database, geoIP)
 
 	// for development only
 	saveDummyLink(database, "STORM", "https://github.com/asdine/storm#options", "Storm project at GitHub", true)
@@ -63,7 +51,7 @@ func main() {
 	go shortener.StartServer(database, statistics, opts.Host)
 
 	// Run Telegram bot
-	bot.Start(database, statistics, opts.BotToken, opts.Port, opts.AcceptFromUser, opts.Host, opts.IsDebug)
+	bot.Start(database, statistics, geoIP, opts.BotToken, opts.Port, opts.AcceptFromUser, opts.Host, opts.IsDebug)
 }
 
 func saveDummyLink(database *db.Database, suffix, targetAddress, descr string, isPublic bool) {

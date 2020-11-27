@@ -1,23 +1,22 @@
 package stats
 
 import (
-	"errors"
-	"github.com/oschwald/geoip2-golang"
-	"github.com/w32blaster/shortana/db"
 	"log"
-	"net"
 	"net/http"
+
+	"github.com/w32blaster/shortana/db"
+	"github.com/w32blaster/shortana/geoip"
 )
 
 type Statistics struct {
 	db    *db.Database
-	geoip *geoip2.Reader
+	geoIP *geoip.GeoIP
 }
 
-func New(database *db.Database, geoIPdb *geoip2.Reader) *Statistics {
+func New(database *db.Database, geoIPdb *geoip.GeoIP) *Statistics {
 	return &Statistics{
 		db:    database,
-		geoip: geoIPdb,
+		geoIP: geoIPdb,
 	}
 }
 
@@ -28,7 +27,7 @@ func (s Statistics) ProcessRequest(req *http.Request, requestedUrl string) {
 		ipAddress = req.RemoteAddr
 	}
 
-	countryCode, countryName, city, err := s.getGeoStatsForTheIP(ipAddress)
+	countryCode, countryName, city, err := s.geoIP.GetGeoStatsForTheIP(ipAddress)
 	if err != nil {
 		log.Println("ERROR! Can't get GeoIP data. Reason: " + err.Error())
 	}
@@ -37,18 +36,4 @@ func (s Statistics) ProcessRequest(req *http.Request, requestedUrl string) {
 	if err != nil {
 		log.Println("ERROR cant save stats because: " + err.Error())
 	}
-}
-
-func (s Statistics) getGeoStatsForTheIP(ipAddress string) (string, string, string, error) {
-	if len(ipAddress) == 0 {
-		return "unknown", "unknown", "unknown", errors.New("IP Address of visitor is unknown")
-	}
-
-	ip := net.ParseIP(ipAddress)
-	record, err := s.geoip.City(ip)
-	if err != nil {
-		return "unknown", "unknown", "unknown", err
-	}
-
-	return record.Country.IsoCode, record.Country.Names["en"], record.City.Names["en"], nil
 }

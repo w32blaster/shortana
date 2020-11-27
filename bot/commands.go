@@ -1,11 +1,13 @@
 package bot
 
 import (
-	"github.com/w32blaster/shortana/db"
-	"github.com/w32blaster/shortana/stats"
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/w32blaster/shortana/db"
+	"github.com/w32blaster/shortana/geoip"
+	"github.com/w32blaster/shortana/stats"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
@@ -15,6 +17,7 @@ type Command struct {
 	bot      *tgbotapi.BotAPI
 	hostname string
 	stats    *stats.Statistics
+	geoIP    *geoip.GeoIP
 }
 
 func (c Command) NotAllowedToSpeak(message *tgbotapi.Message) {
@@ -36,6 +39,12 @@ func (c Command) ProcessCommands(message *tgbotapi.Message) {
 
 	case "list":
 		renderShortenedURLsList(c.bot, chatID, c.db, c.hostname)
+
+	case "download-database":
+		if err := c.geoIP.DownloadGeoIPDatabase(); err != nil {
+			sendMsg(c.bot, chatID, "Database update failed, reason is "+err.Error())
+		}
+		sendMsg(c.bot, chatID, "Yay! Database was updated properly")
 
 	default:
 		sendMsg(c.bot, chatID, "Sorry, I don't recognyze such command: "+command+", please call /help to get full list of commands I understand")

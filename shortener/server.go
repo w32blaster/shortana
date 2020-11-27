@@ -1,7 +1,6 @@
 package shortener
 
 import (
-	"fmt"
 	"github.com/w32blaster/shortana/stats"
 	"html/template"
 	"log"
@@ -42,7 +41,6 @@ func makeRequestProcessor(db *db.Database, stats *stats.Statistics, hostname str
 			return
 		}
 
-		fmt.Println("Process " + shortUrl)
 		go stats.ProcessRequest(req, shortUrl)
 
 		w.Header().Add("Location", url.FullUrl)
@@ -60,8 +58,6 @@ func printIndex(db *db.Database, w http.ResponseWriter, hostname, wrongUrl strin
 		Hostname: hostname,
 		WrongUrl: wrongUrl,
 	}
-
-	fmt.Println(db.GetAllStatistics())
 
 	if err = tmplIndex.Execute(w, data); err != nil {
 		log.Println("Error while rendering page: " + err.Error())

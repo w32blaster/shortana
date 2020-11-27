@@ -2,6 +2,7 @@ package bot
 
 import (
 	"github.com/w32blaster/shortana/db"
+	"github.com/w32blaster/shortana/geoip"
 	"github.com/w32blaster/shortana/stats"
 	"log"
 	"net/http"
@@ -10,7 +11,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 )
 
-func Start(database *db.Database, statistics *stats.Statistics, botToken string, port, acceptFromUser int, hostname string, isDebug bool) {
+func Start(database *db.Database, statistics *stats.Statistics, geoIP *geoip.GeoIP, botToken string, port, acceptFromUser int, hostname string, isDebug bool) {
 
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
@@ -24,6 +25,7 @@ func Start(database *db.Database, statistics *stats.Statistics, botToken string,
 		bot:      bot,
 		hostname: hostname,
 		stats:    statistics,
+		geoIP:    geoIP,
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
