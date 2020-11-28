@@ -5,7 +5,7 @@ import "time"
 type (
 	ShortURL struct {
 		ShortUrl    string `storm:"id"` // unique primary key
-		FullUrl     string
+		TargetUrl   string
 		Description string
 		IsPublic    bool
 	}

@@ -26,6 +26,7 @@ func Start(database *db.Database, statistics *stats.Statistics, geoIP *geoip.Geo
 		hostname: hostname,
 		stats:    statistics,
 		geoIP:    geoIP,
+		step:     None,
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
@@ -51,8 +52,7 @@ func Start(database *db.Database, statistics *stats.Statistics, geoIP *geoip.Geo
 				if update.Message.ReplyToMessage == nil {
 
 					// This is a simple text
-					log.Println("This is plain text: " + update.Message.Text)
-					//commands.ProcessSimpleText(bot, update.Message)
+					cmd.ProcessSimpleText(bot, update.Message)
 
 				}
 			}

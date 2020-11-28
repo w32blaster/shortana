@@ -43,7 +43,7 @@ func makeRequestProcessor(db *db.Database, stats *stats.Statistics, hostname str
 
 		go stats.ProcessRequest(req, shortUrl)
 
-		w.Header().Add("Location", url.FullUrl)
+		w.Header().Add("Location", url.TargetUrl)
 		w.WriteHeader(http.StatusMovedPermanently)
 	}
 }

@@ -47,7 +47,7 @@
                         {{range .Links}}
                             {{if .IsPublic}}
                                 <li>
-                                    <a href="{{.FullUrl}}">{{$.Hostname}}/{{.ShortUrl}}</a> - {{ .Description }}
+                                    <a href="{{.TargetUrl}}">{{$.Hostname}}/{{.ShortUrl}}</a> - {{ .Description }}
                                 </li>
                             {{end}}
                         {{end}}

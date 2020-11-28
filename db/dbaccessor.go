@@ -38,10 +38,22 @@ func (d Database) Close() {
 func (d Database) SaveShortUrl(shortSuffix, fullTargetAddress, description string, isPublic bool) error {
 	return d.db.Save(&ShortURL{
 		ShortUrl:    shortSuffix,
-		FullUrl:     fullTargetAddress,
+		TargetUrl:   fullTargetAddress,
 		Description: description,
 		IsPublic:    isPublic,
 	})
+}
+
+func (d Database) SaveShortUrlObject(shortUrl *ShortURL) error {
+	return d.db.Save(shortUrl)
+}
+
+func (d Database) UpdateShortUrl(id, fieldName string, value interface{}) error {
+	shortUrl, err := d.GetUrl(id)
+	if err != nil {
+		return err
+	}
+	return d.db.UpdateField(shortUrl, fieldName, value)
 }
 
 func (d Database) GetAll() ([]ShortURL, error) {
@@ -50,10 +62,10 @@ func (d Database) GetAll() ([]ShortURL, error) {
 	return shortUrls, err
 }
 
-func (d Database) GetUrl(suffix string) (ShortURL, error) {
+func (d Database) GetUrl(suffix string) (*ShortURL, error) {
 	var shortUrl ShortURL
 	err := d.db.One("ShortUrl", suffix, &shortUrl)
-	return shortUrl, err
+	return &shortUrl, err
 }
 
 func (d Database) GetAllStatistics() ([]OneViewStatistic, error) {
