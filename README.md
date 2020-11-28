@@ -19,6 +19,9 @@ URL shortener managed by Telegram bot
     for the local development it is the Ngrock URL, such as https://blablabla.eu.ngrok.io 
 6. now, if you print something in your bot, the request will be propagated to your locally running app
 
+# Docker
+Official Docker image can be found here: 
+https://hub.docker.com/repository/docker/w32blaster/shortana
 
 # Credits
 

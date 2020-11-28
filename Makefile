@@ -4,4 +4,4 @@ test:
 	go test -race -short ./...
 
 build:
-	docker build . -t w32blaster.me/bot-weather-watcher
+	docker build . -t w32blaster/shortana
