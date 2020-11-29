@@ -13,7 +13,7 @@ RUN make test
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -a -installsuffix cgo \
     -ldflags "-s -w" \
-    -o /app/bot \
+    -o /app/bot-shortana \
     cmd/shortana/main.go
 
 #
@@ -25,9 +25,9 @@ VOLUME "/storage"
 EXPOSE 8444
 
 # copy our bot executable
-COPY --from=builder /app/bot /bot
+COPY --from=builder /app/bot-shortana /bot-shortana
 
 # copy root CA certificate to set up HTTPS connection with Telegram
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-CMD ["/bot"]
+CMD ["/bot-shortana"]
