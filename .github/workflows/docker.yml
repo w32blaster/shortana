@@ -35,5 +35,5 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           username: ${{ github.actor }}
           registry: docker.pkg.github.com
-          repository: w32blaster/shortana/shortener
+          repository: daxire/daxi-core/shortana
           tags: latest
