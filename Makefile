@@ -4,4 +4,4 @@ test:
 	go test -race -short ./...
 
 build:
-	docker build . -t w32blaster/shortana
+	docker build . -t daxire/daxi-core/shortana
