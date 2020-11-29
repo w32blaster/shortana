@@ -1,5 +1,12 @@
-# shortana
-URL shortener managed by Telegram bot
+# Shortana
+Just a simple plain URL shortener managed by Telegram bot. Using bot you can add, delete
+your short URLs and get a view statistics.
+
+To install Shortana to your server, you need:
+
+1. create a new Telegram Bot
+2. create account at maxmind.com to download fresh GeoIP database (needed to get country and town by IP address)
+3. buy a new domain, short one :)
 
 ## How to create a telegram bot
 1. Create a new bot using @BotFather
