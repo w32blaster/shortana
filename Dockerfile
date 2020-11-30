@@ -29,6 +29,6 @@ COPY --from=builder /app/bot-shortana /bot-shortana
 COPY --from=builder /app/templates /templates
 
 # copy root CA certificate to set up HTTPS connection with Telegram
-# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 CMD ["/bot-shortana"]

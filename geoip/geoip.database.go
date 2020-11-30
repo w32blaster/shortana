@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,13 +24,13 @@ const (
 var m sync.Mutex
 
 type GeoIP struct {
-	geoip      *geoip2.Reader
-	geoipPath  string
-	licenseKey string
-	isReady    bool
+	geoip       *geoip2.Reader
+	storagePath string
+	licenseKey  string
+	isReady     bool
 }
 
-func New(path, license string) *GeoIP {
+func New(path, license string, isReady bool) *GeoIP {
 
 	// TODO: check, if not exists, then download
 	geoIPdb, err := geoip2.Open(path + "/" + fileName)
@@ -38,10 +39,10 @@ func New(path, license string) *GeoIP {
 	}
 
 	return &GeoIP{
-		geoip:      geoIPdb,
-		geoipPath:  path,
-		licenseKey: license,
-		isReady:    false,
+		geoip:       geoIPdb,
+		storagePath: path,
+		licenseKey:  license,
+		isReady:     isReady,
 	}
 }
 
@@ -50,7 +51,7 @@ func (g GeoIP) Close() {
 }
 
 func (g GeoIP) reconnectToDatabase() {
-	geoIPdb, err := geoip2.Open(g.geoipPath + "/" + fileName)
+	geoIPdb, err := geoip2.Open(g.storagePath + "/" + fileName)
 	if err != nil {
 		panic(err)
 	}
@@ -83,14 +84,18 @@ func (g GeoIP) DownloadGeoIPDatabase(fnUpdate func(msg string)) error {
 	downloadURL := fmt.Sprintf("https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=%s&suffix=tar.gz", g.licenseKey)
 	resp, err := grab.Get("/tmp", downloadURL)
 	if err != nil {
+		log.Println("Error downloading GeoIP file. Err: " + err.Error())
 		return err
 	}
 
 	fnUpdate("Downloaded")
+	log.Printf("Downloaded file %s with response %d \n", resp.Filename, resp.HTTPResponse.StatusCode)
+
 	folderName := resp.Filename[:len(resp.Filename)-7] // trim the extension ".tar.gz"
-	oldDatabase := g.geoipPath + "/geocityLite-old.mmdb"
+	oldDatabase := g.storagePath + "/geocityLite-old.mmdb"
 
 	if err := unGzip(resp.Filename, tmpTarBall); err != nil {
+		log.Println("Error while unzipping. Err: " + err.Error())
 		return err
 	}
 
@@ -106,13 +111,13 @@ func (g GeoIP) DownloadGeoIPDatabase(fnUpdate func(msg string)) error {
 	g.Close()
 
 	// rename old database (just in case)
-	if err := os.Rename(g.geoipPath+"/"+fileName, g.geoipPath+"/geocityLite-old.mmdb"); err != nil {
+	if err := os.Rename(g.storagePath+"/"+fileName, g.storagePath+"/geocityLite-old.mmdb"); err != nil {
 		return err
 	}
 
 	// copy freshly downloaded database to our working directory
 	fnUpdate("replace database")
-	if err := os.Rename(folderName+"/"+fileName, g.geoipPath+"/"+fileName); err != nil {
+	if err := os.Rename(folderName+"/"+fileName, g.storagePath+"/"+fileName); err != nil {
 		return err
 	}
 

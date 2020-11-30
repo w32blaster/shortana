@@ -15,6 +15,7 @@ type Opts struct {
 	Port              int    `env:"PORT" envDefault:"8444"`
 	Host              string `env:"HOST" envDefault:"http://localhost:3000"`
 	IsDebug           bool   `env:"IS_DEBUG"`
+	IsGeoIPReady      bool   `env:"IS_GEOIP_READY" envDefault:"false"`
 	BotToken          string `env:"BOT_TOKEN,required"`
 	AcceptFromUser    int    `env:"ACCEPT_FROM_USER"`
 	StoragePath       string `env:"STORAGE_PATH" envDefault:"."`
@@ -31,7 +32,7 @@ func main() {
 	}
 
 	// open the GeoIP database
-	geoIP := geoip.New(opts.StoragePath, opts.MaxmindLicenseKey)
+	geoIP := geoip.New(opts.StoragePath, opts.MaxmindLicenseKey, opts.IsGeoIPReady)
 	defer geoIP.Close()
 
 	// Init BoltDB database

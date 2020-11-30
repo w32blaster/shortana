@@ -57,6 +57,9 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	case "add":
 		c.initiateAdding(chatID)
 
+	case "stats":
+		c.printStatisticTemp(chatID)
+
 	case "download":
 		fnOnUpdate := func(msg string) {
 			msg = strings.Replace(msg, "/", " ", -1)
@@ -155,6 +158,28 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 
 		sendMsg(c.bot, callbackQuery.Message.Chat.ID, "New Short URL is saved")
 	}
+}
+
+func (c *Command) printStatisticTemp(chatID int64) {
+	var sb strings.Builder
+	stats, err := c.db.GetAllStatistics()
+	if err != nil {
+		sendMsg(c.bot, chatID, "Error getting stats: "+err.Error())
+		return
+	}
+
+	for _, k := range stats {
+		sb.WriteString("> URL: ")
+		sb.WriteString(k.ShortUrl)
+		sb.WriteString(", country: ")
+		sb.WriteString(k.CountryCode)
+		sb.WriteString(", city: ")
+		sb.WriteString(k.City)
+		sb.WriteString(", IP: ")
+		sb.WriteString(k.UserIpAddress)
+		sb.WriteString("\n---\n")
+	}
+	sendMsg(c.bot, chatID, sb.String())
 }
 
 func renderPublicPrivateButtons(bot *tgbotapi.BotAPI, chatID int64, messageID int) {
