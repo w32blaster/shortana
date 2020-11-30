@@ -18,10 +18,10 @@ type Database struct {
 	databasePath string
 }
 
-func Init() *Database {
+func Init(storagePath string) *Database {
 
 	// Open Storm DB
-	boltdb, err := storm.Open("shortana.db", storm.Codec(msgpack.Codec), storm.BoltOptions(0600, &bbolt.Options{Timeout: 5 * time.Second}))
+	boltdb, err := storm.Open(storagePath+"/shortana.db", storm.Codec(msgpack.Codec), storm.BoltOptions(0600, &bbolt.Options{Timeout: 5 * time.Second}))
 	if err != nil {
 		panic(err)
 	}

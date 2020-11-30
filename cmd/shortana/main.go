@@ -17,7 +17,7 @@ type Opts struct {
 	IsDebug           bool   `env:"IS_DEBUG"`
 	BotToken          string `env:"BOT_TOKEN,required"`
 	AcceptFromUser    int    `env:"ACCEPT_FROM_USER"`
-	GeoIpDatabasePath string `env:"GEOIP_DB_PATH" envDefault:"."`
+	StoragePath       string `env:"STORAGE_PATH" envDefault:"."`
 	MaxmindLicenseKey string `env:"MAXMIND_LICENSE_KEY,required"`
 }
 
@@ -31,11 +31,11 @@ func main() {
 	}
 
 	// open the GeoIP database
-	geoIP := geoip.New(opts.GeoIpDatabasePath, opts.MaxmindLicenseKey)
+	geoIP := geoip.New(opts.StoragePath, opts.MaxmindLicenseKey)
 	defer geoIP.Close()
 
 	// Init BoltDB database
-	database := db.Init()
+	database := db.Init(opts.StoragePath)
 	defer database.Close()
 
 	statistics := stats.New(database, geoIP)
