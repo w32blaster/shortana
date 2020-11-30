@@ -1,13 +1,13 @@
 package shortener
 
 import (
-	"github.com/w32blaster/shortana/stats"
 	"html/template"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/w32blaster/shortana/db"
+	"github.com/w32blaster/shortana/stats"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"

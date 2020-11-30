@@ -4,6 +4,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/w32blaster/shortana/db"
 	"github.com/w32blaster/shortana/geoip"
@@ -24,15 +25,26 @@ const (
 	public = "p"
 )
 
-type Command struct {
-	db               *db.Database
-	bot              *tgbotapi.BotAPI
-	hostname         string
-	stats            *stats.Statistics
-	geoIP            *geoip.GeoIP
-	step             addingStep // when we start a dialog to add a new data, we should remember step for it
-	halfSavedShortID string     // short URL saved in DB with half filled data in it
-}
+var (
+	tplStats = template.Must(template.ParseFiles("templates/stats.md"))
+)
+
+type (
+	StatsGroupedByURLData struct {
+		Stats    map[string]db.OneURLSummaryStatistics
+		Hostname string
+	}
+
+	Command struct {
+		db               *db.Database
+		bot              *tgbotapi.BotAPI
+		hostname         string
+		stats            *stats.Statistics
+		geoIP            *geoip.GeoIP
+		step             addingStep // when we start a dialog to add a new data, we should remember step for it
+		halfSavedShortID string     // short URL saved in DB with half filled data in it
+	}
+)
 
 func (c *Command) NotAllowedToSpeak(message *tgbotapi.Message) {
 	chatID := message.Chat.ID
@@ -57,9 +69,6 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	case "add":
 		c.initiateAdding(chatID)
 
-	case "stats":
-		c.printStatisticTemp(chatID)
-
 	case "download":
 		fnOnUpdate := func(msg string) {
 			msg = strings.Replace(msg, "/", " ", -1)
@@ -71,7 +80,15 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 		sendMsg(c.bot, chatID, "Yay! Database was updated properly")
 
 	default:
-		sendMsg(c.bot, chatID, "Sorry, I don't recognyze such command: "+command+", please call /help to get full list of commands I understand")
+		if strings.HasPrefix(command, "stats") {
+			if command == "stats" {
+				// print statistic summary per all URLs
+				c.printStatisticTemp(chatID)
+			}
+
+		} else {
+			sendMsg(c.bot, chatID, "Sorry, I don't recognyze such command: "+command+", please call /help to get full list of commands I understand")
+		}
 	}
 }
 
@@ -161,24 +178,25 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 }
 
 func (c *Command) printStatisticTemp(chatID int64) {
+
 	var sb strings.Builder
-	stats, err := c.db.GetAllStatistics()
+	stats, err := c.db.GetAllStatisticsGroupedByURLs()
 	if err != nil {
-		sendMsg(c.bot, chatID, "Error getting stats: "+err.Error())
+		log.Printf("error executing template, err is %s", err.Error())
+		sendMsg(c.bot, chatID, "Error getting grouped stats")
 		return
 	}
 
-	for _, k := range stats {
-		sb.WriteString("> URL: ")
-		sb.WriteString(k.ShortUrl)
-		sb.WriteString(", country: ")
-		sb.WriteString(k.CountryCode)
-		sb.WriteString(", city: ")
-		sb.WriteString(k.City)
-		sb.WriteString(", IP: ")
-		sb.WriteString(k.UserIpAddress)
-		sb.WriteString("\n---\n")
+	statsData := StatsGroupedByURLData{
+		Stats:    stats,
+		Hostname: c.hostname,
 	}
+	if err := tplStats.Execute(&sb, statsData); err != nil {
+		log.Printf("error executing template, err is %s", err.Error())
+		sendMsg(c.bot, chatID, "Error parsing template")
+		return
+	}
+
 	sendMsg(c.bot, chatID, sb.String())
 }
 

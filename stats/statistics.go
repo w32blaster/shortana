@@ -27,6 +27,8 @@ func (s Statistics) ProcessRequest(req *http.Request, requestedUrl string) {
 		ipAddress = req.RemoteAddr
 	}
 
+	userAgent := req.Header.Get("User-Agent")
+
 	var countryCode, countryName, city string
 	var err error
 
@@ -39,7 +41,7 @@ func (s Statistics) ProcessRequest(req *http.Request, requestedUrl string) {
 		log.Println("GeoIP database is not ready yet, so the current view will be saved without GEO data :(")
 	}
 
-	err = s.db.SaveStatisticForOneView(ipAddress, requestedUrl, countryCode, countryName, city)
+	err = s.db.SaveStatisticForOneView(ipAddress, requestedUrl, countryCode, countryName, city, userAgent)
 	if err != nil {
 		log.Println("ERROR cant save stats because: " + err.Error())
 	}
