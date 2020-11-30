@@ -5,6 +5,7 @@ import (
 	"github.com/asdine/storm/v3/codec/msgpack"
 	"github.com/asdine/storm/v3/q"
 	"go.etcd.io/bbolt"
+	"strings"
 	"time"
 )
 
@@ -66,6 +67,12 @@ func (d Database) GetAll() ([]ShortURL, error) {
 	return shortUrls, err
 }
 
+func (d Database) IsEmpty() bool {
+	var shortUrls []ShortURL
+	d.db.All(&shortUrls)
+	return len(shortUrls) == 0
+}
+
 func (d Database) GetAllMapped() (map[string]ShortURL, error) {
 	var shortUrls []ShortURL
 	err := d.db.All(&shortUrls)
@@ -81,6 +88,44 @@ func (d Database) GetUrl(suffix string) (*ShortURL, error) {
 	var shortUrl ShortURL
 	err := d.db.One("ShortUrl", suffix, &shortUrl)
 	return &shortUrl, err
+}
+
+func (d Database) GetUrlByID(ID int) (*ShortURL, error) {
+	var shortUrl ShortURL
+	err := d.db.One("ID", ID, &shortUrl)
+	return &shortUrl, err
+}
+
+func (d Database) GetStatisticsForOneURL(shortUrlID int) (*ShortURL, map[string]OneDaySummaryStatistics, error) {
+
+	sURL, err := d.GetUrlByID(shortUrlID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var views []OneViewStatistic
+	if err := d.db.Find("ShortUrl", sURL.ShortUrl, &views); err != nil {
+		return nil, nil, err
+	}
+
+	mapViews := make(map[string]OneDaySummaryStatistics)
+	for _, k := range views {
+		if existingView, found := mapViews[k.Day]; found {
+			existingView.TotalViews = existingView.TotalViews + len(k.ViewTimes)
+			existingView.UniqueViews++
+			mapViews[k.Day] = existingView
+
+		} else {
+			mapViews[k.Day] = OneDaySummaryStatistics{
+				Date:               k.Day,
+				DateWithoutHyphens: strings.ReplaceAll(k.Day, "-", ""),
+				TotalViews:         len(k.ViewTimes),
+				UniqueViews:        1,
+			}
+		}
+	}
+
+	return sURL, mapViews, nil
 }
 
 func (d Database) GetAllStatisticsGroupedByURLs() (map[string]OneURLSummaryStatistics, error) {
@@ -113,6 +158,7 @@ func (d Database) GetAllStatisticsGroupedByURLs() (map[string]OneURLSummaryStati
 
 			// add a new record to the map
 			groupedStats[k.ShortUrl] = OneURLSummaryStatistics{
+				ID:               k.ID,
 				ShortUrl:         k.ShortUrl,
 				PublishDate:      publishDate,
 				TotalDaysActive:  int(duration.Hours() / 24),

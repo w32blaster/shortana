@@ -2,6 +2,7 @@ package bot
 
 import (
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -26,13 +27,20 @@ const (
 )
 
 var (
-	tplStats = template.Must(template.ParseFiles("templates/stats.md"))
+	patternCommandStatsForURL = regexp.MustCompile(`^(stats)(\d+)$`)
+	tplStats                  = template.Must(template.ParseFiles("templates/stats.md"))
+	tplStatsOneDay            = template.Must(template.ParseFiles("templates/stats.one.url.md"))
 )
 
 type (
 	StatsGroupedByURLData struct {
 		Stats    map[string]db.OneURLSummaryStatistics
 		Hostname string
+	}
+
+	StatsForOneURL struct {
+		Stats    map[string]db.OneDaySummaryStatistics
+		ShortURL db.ShortURL
 	}
 
 	Command struct {
@@ -82,8 +90,13 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	default:
 		if strings.HasPrefix(command, "stats") {
 			if command == "stats" {
+
 				// print statistic summary per all URLs
-				c.printStatisticTemp(chatID)
+				c.printStatisticSummary(chatID)
+			} else if patternCommandStatsForURL.MatchString(command) {
+
+				// print statistics for one ShortURL only
+				c.getStatisticOneURL(chatID, command)
 			}
 
 		} else {
@@ -177,7 +190,35 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	}
 }
 
-func (c *Command) printStatisticTemp(chatID int64) {
+func (c *Command) getStatisticOneURL(chatID int64, command string) {
+
+	// extract ID
+	arrParts := patternCommandStatsForURL.FindStringSubmatch(command)
+	shortUrlID, err := strconv.Atoi(arrParts[2])
+	if err != nil {
+		log.Printf("Cant extract ID from the %s command, error is %s", command, err.Error())
+		sendMsg(c.bot, chatID, "Cant parse command")
+		return
+	}
+
+	// find statistics
+	sURL, views, err := c.db.GetStatisticsForOneURL(shortUrlID)
+	data := StatsForOneURL{
+		Stats:    views,
+		ShortURL: *sURL,
+	}
+
+	var sb strings.Builder
+	if err := tplStatsOneDay.Execute(&sb, data); err != nil {
+		log.Printf("error executing template, err is %s", err.Error())
+		sendMsg(c.bot, chatID, "Error parsing template")
+		return
+	}
+
+	sendMsg(c.bot, chatID, sb.String())
+}
+
+func (c *Command) printStatisticSummary(chatID int64) {
 
 	var sb strings.Builder
 	stats, err := c.db.GetAllStatisticsGroupedByURLs()
