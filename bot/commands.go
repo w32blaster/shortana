@@ -30,6 +30,10 @@ const (
 var (
 	patternCommandStatsForURL       = regexp.MustCompile(`^(stats)(\d+)$`)
 	patternCommandStatsForURLOneDay = regexp.MustCompile(`^stats(\d+)x(\d{8})$`)
+
+	funcMap = template.FuncMap{
+		"markdownEscape": markdownEscape,
+	}
 )
 
 type (
@@ -231,13 +235,13 @@ func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
 		return
 	}
 
-	data := StatsForURLOneDay{
+	statsData := StatsForURLOneDay{
 		Views:    statsDay,
 		ShortURL: *shortURL,
 	}
 	var sb strings.Builder
-	tplStatsViews := template.Must(template.ParseFiles("templates/stats.one.day.md"))
-	if err := tplStatsViews.Execute(&sb, data); err != nil {
+	tplStatsViews := template.Must(template.New("stats.one.day.md").Funcs(funcMap).ParseFiles("templates/stats.one.day.md"))
+	if err := tplStatsViews.ExecuteTemplate(&sb, "stats.one.day.md", statsData); err != nil {
 		log.Printf("error executing template, err is %s", err.Error())
 		sendMsg(c.bot, chatID, "Error parsing template")
 		return
@@ -265,13 +269,13 @@ func (c *Command) getStatisticOneURL(chatID int64, command string) {
 		return
 	}
 
-	data := StatsForOneURL{
+	statsData := StatsForOneURL{
 		Stats:    views,
 		ShortURL: *sURL,
 	}
 	var sb strings.Builder
-	tplStatsOneDay := template.Must(template.ParseFiles("templates/stats.one.url.md"))
-	if err := tplStatsOneDay.Execute(&sb, data); err != nil {
+	tplStatsOneDay := template.Must(template.New("stats.one.url.md").Funcs(funcMap).ParseFiles("templates/stats.one.url.md"))
+	if err := tplStatsOneDay.ExecuteTemplate(&sb, "stats.one.url.md", statsData); err != nil {
 		log.Printf("error executing template, err is %s", err.Error())
 		sendMsg(c.bot, chatID, "Error parsing template")
 		return
@@ -295,8 +299,8 @@ func (c *Command) printStatisticSummary(chatID int64) {
 		Hostname: c.hostname,
 	}
 
-	tplStats := template.Must(template.ParseFiles("templates/stats.md"))
-	if err := tplStats.Execute(&sb, statsData); err != nil {
+	tplStats := template.Must(template.New("stats.md").Funcs(funcMap).ParseFiles("templates/stats.md"))
+	if err := tplStats.ExecuteTemplate(&sb, "stats.md", statsData); err != nil {
 		log.Printf("error executing template, err is %s", err.Error())
 		sendMsg(c.bot, chatID, "Error parsing template")
 		return
@@ -365,7 +369,7 @@ func extractCommand(rawCommand string) string {
 // simply send a message to bot in Markdown format
 func sendMsg(bot *tgbotapi.BotAPI, chatID int64, textMarkdown string) (tgbotapi.Message, error) {
 	msg := tgbotapi.NewMessage(chatID, textMarkdown)
-	msg.ParseMode = "Markdown"
+	msg.ParseMode = "MarkdownV2"
 	msg.DisableWebPagePreview = true
 
 	// send the message
@@ -376,4 +380,32 @@ func sendMsg(bot *tgbotapi.BotAPI, chatID int64, textMarkdown string) (tgbotapi.
 	}
 
 	return resp, err
+}
+
+// From DOCs: https://core.telegram.org/bots/api#markdownv2-style
+// esc
+// '_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'
+// must be escaped with the preceding character '\'.`'
+func markdownEscape(s string) string {
+	replacer := strings.NewReplacer(
+		"_", "\\_",
+		"*", "\\*",
+		"[", "\\[",
+		"]", "\\]",
+		"(", "\\(",
+		")", "\\)",
+		"~", "\\~",
+		"`", "\\`",
+		">", "\\>",
+		"#", "\\#",
+		"+", "\\+",
+		"-", "\\-",
+		"=", "\\=",
+		"|", "\\|",
+		"{", "\\{",
+		"}", "\\}",
+		".", "\\.",
+		"!", "\\!",
+	)
+	return replacer.Replace(s)
 }

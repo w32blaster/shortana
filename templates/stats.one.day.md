@@ -1,5 +1,5 @@
-Views statistics for {{ .ShortURL.ShortUrl }} at {{ .ShortURL.PublishDate }}:
+Views statistics for {{ .ShortURL.ShortUrl }} at {{ markdownEscape .ShortURL.PublishDate }}:
 
 {{ range .Views }} {{ $length := len .ViewTimes }}
- x `{{ .UserIpAddress }}` {{ $length }} views from {{ .City}} ({{ .CountryCode }}); User-Agent: {{ .UserAgent }}
+ \- {{ markdownEscape .UserIpAddress }} {{ $length }} views from {{ markdownEscape .City}} \({{ markdownEscape .CountryCode }}\); User\-Agent: {{ markdownEscape .UserAgent }}
 {{ end }}
