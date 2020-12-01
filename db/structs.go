@@ -27,6 +27,7 @@ type (
 	// representation only
 	OneURLSummaryStatistics struct {
 		ID               int
+		ShortUrlID       int
 		ShortUrl         string
 		PublishDate      string // format is 2006-01-02
 		TotalDaysActive  int

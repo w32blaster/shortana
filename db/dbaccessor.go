@@ -159,6 +159,7 @@ func (d Database) GetAllStatisticsGroupedByURLs() (map[string]OneURLSummaryStati
 			// add a new record to the map
 			groupedStats[k.ShortUrl] = OneURLSummaryStatistics{
 				ID:               k.ID,
+				ShortUrlID:       allShortUrls[k.ShortUrl].ID,
 				ShortUrl:         k.ShortUrl,
 				PublishDate:      publishDate,
 				TotalDaysActive:  int(duration.Hours() / 24),
