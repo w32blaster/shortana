@@ -203,11 +203,16 @@ func (c *Command) getStatisticOneURL(chatID int64, command string) {
 
 	// find statistics
 	sURL, views, err := c.db.GetStatisticsForOneURL(shortUrlID)
+	if err != nil {
+		log.Printf("Cant get statistics for %s command (short ID = %d), error is %s", command, shortUrlID, err.Error())
+		sendMsg(c.bot, chatID, "Cant get statistics")
+		return
+	}
+
 	data := StatsForOneURL{
 		Stats:    views,
 		ShortURL: *sURL,
 	}
-
 	var sb strings.Builder
 	if err := tplStatsOneDay.Execute(&sb, data); err != nil {
 		log.Printf("error executing template, err is %s", err.Error())
@@ -223,7 +228,7 @@ func (c *Command) printStatisticSummary(chatID int64) {
 	var sb strings.Builder
 	stats, err := c.db.GetAllStatisticsGroupedByURLs()
 	if err != nil {
-		log.Printf("error executing template, err is %s", err.Error())
+		log.Printf("Error getting grouped stats, err is %s", err.Error())
 		sendMsg(c.bot, chatID, "Error getting grouped stats")
 		return
 	}
@@ -263,8 +268,11 @@ func renderShortenedURLsList(bot *tgbotapi.BotAPI, chatID int64, database *db.Da
 		sendMsg(bot, chatID, "no short URLs yet. You can add a new one by hitting /add command")
 	}
 	var sb strings.Builder
-	for i, k := range shortenedUrls {
-		sb.WriteString(strconv.Itoa(i + 1))
+	for _, k := range shortenedUrls {
+
+		log.Println(k)
+
+		sb.WriteString(strconv.Itoa(k.ID))
 		sb.WriteString(") [")
 		sb.WriteString(hostname)
 		sb.WriteString("/")
@@ -304,7 +312,7 @@ func sendMsg(bot *tgbotapi.BotAPI, chatID int64, textMarkdown string) (tgbotapi.
 	// send the message
 	resp, err := bot.Send(msg)
 	if err != nil {
-		log.Println("bot.Send:", err, resp)
+		log.Println("bot.Send:", err, resp, textMarkdown)
 		return resp, err
 	}
 
