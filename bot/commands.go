@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/w32blaster/shortana/db"
 	"github.com/w32blaster/shortana/geoip"
@@ -27,12 +28,16 @@ const (
 )
 
 var (
-	patternCommandStatsForURL = regexp.MustCompile(`^(stats)(\d+)$`)
-	tplStats                  = template.Must(template.ParseFiles("templates/stats.md"))
-	tplStatsOneDay            = template.Must(template.ParseFiles("templates/stats.one.url.md"))
+	patternCommandStatsForURL       = regexp.MustCompile(`^(stats)(\d+)$`)
+	patternCommandStatsForURLOneDay = regexp.MustCompile(`^stats(\d+)x(\d{8})$`)
 )
 
 type (
+	StatsForURLOneDay struct {
+		Views    []db.OneViewStatistic
+		ShortURL db.ShortURL
+	}
+
 	StatsGroupedByURLData struct {
 		Stats    map[string]db.OneURLSummaryStatistics
 		Hostname string
@@ -97,6 +102,10 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 
 				// print statistics for one ShortURL only
 				c.getStatisticOneURL(chatID, command)
+			} else if patternCommandStatsForURLOneDay.MatchString(command) {
+
+				// print statistics for one Short URL for one specific day
+				c.getStatisticOneURLOneDay(chatID, command)
 			}
 
 		} else {
@@ -190,6 +199,53 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	}
 }
 
+func extractIdAndDate(command string) (int, time.Time, error) {
+	arrParts := patternCommandStatsForURLOneDay.FindStringSubmatch(command)
+	shortUrlID, err := strconv.Atoi(arrParts[1])
+	if err != nil {
+		log.Printf("Cant extract ID from the %s command, error is %s", command, err.Error())
+		return 0, time.Now(), err
+	}
+
+	dayDate, err := time.Parse("20060102", arrParts[2])
+	if err != nil {
+		log.Printf("Cant parse %s date from the %s command, error is %s", arrParts[2], command, err.Error())
+		return 0, time.Now(), err
+	}
+
+	return shortUrlID, dayDate, nil
+}
+
+func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
+
+	shortUrlID, dayDate, err := extractIdAndDate(command)
+	if err != nil {
+		sendMsg(c.bot, chatID, "Cant parse date")
+		return
+	}
+
+	shortURL, statsDay, err := c.db.GetStatisticForOneURLOneDay(shortUrlID, dayDate)
+	if err != nil {
+		log.Printf("Cant get stats for the short ID=%d from the %s command, error is %s", shortUrlID, command, err.Error())
+		sendMsg(c.bot, chatID, "Cant get stats")
+		return
+	}
+
+	data := StatsForURLOneDay{
+		Views:    statsDay,
+		ShortURL: *shortURL,
+	}
+	var sb strings.Builder
+	tplStatsViews := template.Must(template.ParseFiles("templates/stats.one.day.md"))
+	if err := tplStatsViews.Execute(&sb, data); err != nil {
+		log.Printf("error executing template, err is %s", err.Error())
+		sendMsg(c.bot, chatID, "Error parsing template")
+		return
+	}
+
+	sendMsg(c.bot, chatID, sb.String())
+}
+
 func (c *Command) getStatisticOneURL(chatID int64, command string) {
 
 	// extract ID
@@ -214,6 +270,7 @@ func (c *Command) getStatisticOneURL(chatID int64, command string) {
 		ShortURL: *sURL,
 	}
 	var sb strings.Builder
+	tplStatsOneDay := template.Must(template.ParseFiles("templates/stats.one.url.md"))
 	if err := tplStatsOneDay.Execute(&sb, data); err != nil {
 		log.Printf("error executing template, err is %s", err.Error())
 		sendMsg(c.bot, chatID, "Error parsing template")
@@ -237,6 +294,8 @@ func (c *Command) printStatisticSummary(chatID int64) {
 		Stats:    stats,
 		Hostname: c.hostname,
 	}
+
+	tplStats := template.Must(template.ParseFiles("templates/stats.md"))
 	if err := tplStats.Execute(&sb, statsData); err != nil {
 		log.Printf("error executing template, err is %s", err.Error())
 		sendMsg(c.bot, chatID, "Error parsing template")

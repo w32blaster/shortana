@@ -128,6 +128,25 @@ func (d Database) GetStatisticsForOneURL(shortUrlID int) (*ShortURL, map[string]
 	return sURL, mapViews, nil
 }
 
+func (d Database) GetStatisticForOneURLOneDay(shortUrlID int, dayDate time.Time) (*ShortURL, []OneViewStatistic, error) {
+
+	sURL, err := d.GetUrlByID(shortUrlID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	query := d.db.Select(
+		q.And(
+			q.Eq("ShortUrl", sURL.ShortUrl),
+			q.Eq("Day", dayDate.Format(dayFormat)),
+		),
+	)
+
+	var foundViews []OneViewStatistic
+	err = query.Find(&foundViews)
+	return sURL, foundViews, err
+}
+
 func (d Database) GetAllStatisticsGroupedByURLs() (map[string]OneURLSummaryStatistics, error) {
 	groupedStats := make(map[string]OneURLSummaryStatistics)
 
