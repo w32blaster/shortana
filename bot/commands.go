@@ -383,11 +383,9 @@ func renderShortenedURLsList(bot *tgbotapi.BotAPI, chatID int64, database *db.Da
 
 		sb.WriteString(strconv.Itoa(k.ID))
 		sb.WriteString("\\) [")
-		sb.WriteString(hostname)
-		sb.WriteString("/")
-		sb.WriteString(k.ShortUrl)
+		sb.WriteString(markdownEscape(k.ShortUrl))
 		sb.WriteString("](")
-		sb.WriteString(k.TargetUrl)
+		sb.WriteString(markdownEscapeUrl(k.TargetUrl))
 		sb.WriteString(")")
 		sb.WriteString("\n")
 	}
@@ -456,6 +454,16 @@ func markdownEscape(s string) string {
 		"}", "\\}",
 		".", "\\.",
 		"!", "\\!",
+	)
+	return replacer.Replace(s)
+}
+
+// Inside (...) part of inline link definition,
+// all ')' and '\' must be escaped with a preceding '\' character.
+func markdownEscapeUrl(s string) string {
+	replacer := strings.NewReplacer(
+		")", "\\)",
+		"\\", "\\\\",
 	)
 	return replacer.Replace(s)
 }
