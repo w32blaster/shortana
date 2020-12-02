@@ -24,7 +24,9 @@ const (
 	RequestedDescription
 	RequestedButtonIsPrivateOrPublic
 
-	public = "p"
+	public                = "p"
+	ButtonDeleteMsgPrefix = "dM" // for button "delete message"
+	Separator             = "#"
 )
 
 var (
@@ -43,9 +45,9 @@ var (
 
 type (
 	StatsForURLOneDay struct {
-		Views           []db.OneViewStatistic
-		ShortURL        db.ShortURL
-		ExistingCommand string
+		Views        []db.OneViewStatistic
+		ShortURL     db.ShortURL
+		SelectedDate string
 	}
 
 	StatsGroupedByURLData struct {
@@ -197,6 +199,7 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		CallbackQueryID: callbackQuery.ID,
 	})
 
+	// if that button was "Public" or "Private"
 	if c.step == RequestedButtonIsPrivateOrPublic {
 
 		if err := c.db.UpdateShortUrl(c.halfSavedShortID, "IsPublic", callbackQuery.Data == public); err != nil {
@@ -215,6 +218,14 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		c.bot.Send(msg)
 
 		sendMsg(c.bot, callbackQuery.Message.Chat.ID, "New Short URL is saved")
+	}
+
+	// expected data is "command # date", for example
+	parts := strings.Split(callbackQuery.Data, Separator)
+	if parts[0] == ButtonDeleteMsgPrefix {
+
+		// delete message
+		deleteMessage(c.bot, callbackQuery.Message.Chat.ID, parts[1])
 	}
 }
 
@@ -262,7 +273,8 @@ func (c *Command) getStatisticOneView(chatID int64, command string) {
 		return
 	}
 
-	sendMsg(c.bot, chatID, sb.String())
+	resp, _ := sendMsg(c.bot, chatID, sb.String())
+	renderCloseButton(c.bot, chatID, resp.MessageID)
 }
 
 func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
@@ -281,9 +293,9 @@ func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
 	}
 
 	statsData := StatsForURLOneDay{
-		Views:           statsDay,
-		ShortURL:        *shortURL,
-		ExistingCommand: command,
+		Views:        statsDay,
+		ShortURL:     *shortURL,
+		SelectedDate: dayDate.Format(db.DayFormat),
 	}
 	var sb strings.Builder
 	tplStatsViews := template.Must(template.New("stats.one.day.md").Funcs(funcMap).ParseFiles("templates/stats.one.day.md"))
@@ -293,7 +305,8 @@ func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
 		return
 	}
 
-	sendMsg(c.bot, chatID, sb.String())
+	resp, _ := sendMsg(c.bot, chatID, sb.String())
+	renderCloseButton(c.bot, chatID, resp.MessageID)
 }
 
 func (c *Command) getStatisticOneURL(chatID int64, command string) {
@@ -428,6 +441,27 @@ func sendMsg(bot *tgbotapi.BotAPI, chatID int64, textMarkdown string) (tgbotapi.
 	}
 
 	return resp, err
+}
+
+func renderCloseButton(bot *tgbotapi.BotAPI, chatID int64, messageID int) {
+	strMessageID := strconv.Itoa(messageID)
+
+	rowCloseButton := []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("❌ Close", ButtonDeleteMsgPrefix+Separator+strMessageID),
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(rowCloseButton)
+	keyboardMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, messageID, keyboard)
+	bot.Send(keyboardMsg)
+}
+
+func deleteMessage(bot *tgbotapi.BotAPI, chatID int64, messageID string) {
+	if intMessageID, err := strconv.Atoi(messageID); err == nil {
+		msg := tgbotapi.NewDeleteMessage(chatID, intMessageID)
+		bot.Send(msg)
+	} else {
+		log.Println(err)
+	}
 }
 
 // From DOCs: https://core.telegram.org/bots/api#markdownv2-style

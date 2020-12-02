@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	dayFormat = "2006-01-02"
+	DayFormat = "2006-01-02"
 )
 
 type Database struct {
@@ -37,7 +37,7 @@ func (d Database) Close() {
 }
 
 func (d Database) SaveShortUrl(shortSuffix, fullTargetAddress, description string, isPublic bool) error {
-	day := time.Now().UTC().Format(dayFormat)
+	day := time.Now().UTC().Format(DayFormat)
 
 	return d.db.Save(&ShortURL{
 		ShortUrl:    shortSuffix,
@@ -49,7 +49,7 @@ func (d Database) SaveShortUrl(shortSuffix, fullTargetAddress, description strin
 }
 
 func (d Database) SaveShortUrlObject(shortUrl *ShortURL) error {
-	shortUrl.PublishDate = time.Now().UTC().Format(dayFormat)
+	shortUrl.PublishDate = time.Now().UTC().Format(DayFormat)
 	return d.db.Save(shortUrl)
 }
 
@@ -138,7 +138,7 @@ func (d Database) GetStatisticForOneURLOneDay(shortUrlID int, dayDate time.Time)
 	query := d.db.Select(
 		q.And(
 			q.Eq("ShortUrl", sURL.ShortUrl),
-			q.Eq("Day", dayDate.Format(dayFormat)),
+			q.Eq("Day", dayDate.Format(DayFormat)),
 		),
 	)
 
@@ -172,7 +172,7 @@ func (d Database) GetAllStatisticsGroupedByURLs() (map[string]OneURLSummaryStati
 		} else {
 
 			publishDate := allShortUrls[k.ShortUrl].PublishDate
-			pDate, _ := time.Parse(dayFormat, publishDate)
+			pDate, _ := time.Parse(DayFormat, publishDate)
 			duration := time.Now().Sub(pDate)
 
 			// add a new record to the map
@@ -194,7 +194,7 @@ func (d Database) GetAllStatisticsGroupedByURLs() (map[string]OneURLSummaryStati
 func (d Database) SaveStatisticForOneView(ipAddress, requestedUrl, countryCode, countryName, city, userAgent string) error {
 
 	now := time.Now().UTC()
-	day := now.Format(dayFormat)
+	day := now.Format(DayFormat)
 
 	// firstly, find whether this user has already accessed this URL
 	query := d.db.Select(
