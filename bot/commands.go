@@ -382,7 +382,7 @@ func renderShortenedURLsList(bot *tgbotapi.BotAPI, chatID int64, database *db.Da
 		// log.Println(k)
 
 		sb.WriteString(strconv.Itoa(k.ID))
-		sb.WriteString(") [")
+		sb.WriteString("\\) [")
 		sb.WriteString(hostname)
 		sb.WriteString("/")
 		sb.WriteString(k.ShortUrl)
