@@ -187,7 +187,7 @@ func (c *Command) ProcessSimpleText(bot *tgbotapi.BotAPI, message *tgbotapi.Mess
 		}
 
 		c.step = RequestedButtonIsPrivateOrPublic
-		resp, _ := sendMsg(c.bot, chatID, "Nice one. Is it public or private?")
+		resp, _ := sendEscMsg(c.bot, chatID, "Nice one. Is it public or private?")
 		renderPublicPrivateButtons(c.bot, chatID, resp.MessageID)
 	}
 }
