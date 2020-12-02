@@ -26,6 +26,7 @@ const (
 
 	public                = "p"
 	ButtonDeleteMsgPrefix = "dM" // for button "delete message"
+	ButtonUpdateMsgPrefix = "uM" // for button "update message"
 	Separator             = "#"
 )
 
@@ -96,7 +97,6 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 
 	case "download":
 		fnOnUpdate := func(msg string) {
-			msg = strings.Replace(msg, "/", " ", -1)
 			sendEscMsg(c.bot, chatID, msg)
 		}
 		if err := c.geoIP.DownloadGeoIPDatabase(fnOnUpdate); err != nil {
@@ -106,20 +106,7 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 
 	default:
 		if strings.HasPrefix(command, "stats") {
-			if command == "stats" {
-
-				// print statistic summary per all URLs
-				c.printStatisticSummary(chatID)
-			} else if patternCommandStatsForURL.MatchString(command) {
-
-				// print statistics for one ShortURL only
-				c.getStatisticOneURL(chatID, command)
-			} else if patternCommandStatsForURLOneDay.MatchString(command) {
-
-				// print statistics for one Short URL for one specific day
-				c.getStatisticOneURLOneDay(chatID, command)
-			}
-
+			c.renderStats(command, chatID, "")
 			return
 		}
 
@@ -132,6 +119,32 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 
 		sendEscMsg(c.bot, chatID, "Sorry, I don't recognyze such command: "+command+", please call /help to get full list of commands I understand")
 
+	}
+}
+
+func (c *Command) renderStats(command string, chatID int64, messageIDtoReplace string) {
+
+	intMessageID := 0
+	if len(messageIDtoReplace) > 0 {
+		var err error
+		intMessageID, err = strconv.Atoi(messageIDtoReplace)
+		if err != nil {
+			sendMsg(c.bot, chatID, "Error parsing message ID")
+		}
+	}
+
+	if command == "stats" {
+
+		// print statistic summary per all URLs
+		c.printStatisticSummary(chatID, intMessageID)
+	} else if patternCommandStatsForURL.MatchString(command) {
+
+		// print statistics for one ShortURL only
+		c.getStatisticOneURL(chatID, command, intMessageID)
+	} else if patternCommandStatsForURLOneDay.MatchString(command) {
+
+		// print statistics for one Short URL for one specific day
+		c.getStatisticOneURLOneDay(chatID, command, intMessageID)
 	}
 }
 
@@ -226,6 +239,10 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 
 		// delete message
 		deleteMessage(c.bot, callbackQuery.Message.Chat.ID, parts[1])
+	} else if parts[0] == ButtonUpdateMsgPrefix {
+
+		// update message
+		c.renderStats(parts[2], callbackQuery.Message.Chat.ID, parts[1])
 	}
 }
 
@@ -274,10 +291,10 @@ func (c *Command) getStatisticOneView(chatID int64, command string) {
 	}
 
 	resp, _ := sendMsg(c.bot, chatID, sb.String())
-	renderCloseButton(c.bot, chatID, resp.MessageID)
+	renderCloseUpdateButton(c.bot, chatID, resp.MessageID, command)
 }
 
-func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
+func (c *Command) getStatisticOneURLOneDay(chatID int64, command string, messageIDtoReplace int) {
 
 	shortUrlID, dayDate, err := extractIdAndDate(command)
 	if err != nil {
@@ -305,11 +322,16 @@ func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
 		return
 	}
 
-	resp, _ := sendMsg(c.bot, chatID, sb.String())
-	renderCloseButton(c.bot, chatID, resp.MessageID)
+	var resp tgbotapi.Message
+	if messageIDtoReplace == 0 {
+		resp, _ = sendMsg(c.bot, chatID, sb.String())
+	} else {
+		resp, _ = updateMsg(c.bot, chatID, messageIDtoReplace, sb.String())
+	}
+	renderCloseUpdateButton(c.bot, chatID, resp.MessageID, command)
 }
 
-func (c *Command) getStatisticOneURL(chatID int64, command string) {
+func (c *Command) getStatisticOneURL(chatID int64, command string, messageIDtoReplace int) {
 
 	// extract ID
 	arrParts := patternCommandStatsForURL.FindStringSubmatch(command)
@@ -340,10 +362,14 @@ func (c *Command) getStatisticOneURL(chatID int64, command string) {
 		return
 	}
 
-	sendMsg(c.bot, chatID, sb.String())
+	if messageIDtoReplace == 0 {
+		sendMsg(c.bot, chatID, sb.String())
+	} else {
+		updateMsg(c.bot, chatID, messageIDtoReplace, sb.String())
+	}
 }
 
-func (c *Command) printStatisticSummary(chatID int64) {
+func (c *Command) printStatisticSummary(chatID int64, messageIDtoReplace int) {
 
 	var sb strings.Builder
 	stats, err := c.db.GetAllStatisticsGroupedByURLs()
@@ -365,7 +391,12 @@ func (c *Command) printStatisticSummary(chatID int64) {
 		return
 	}
 
-	sendMsg(c.bot, chatID, sb.String())
+	if messageIDtoReplace == 0 {
+		sendMsg(c.bot, chatID, sb.String())
+		return
+	} else {
+		updateMsg(c.bot, chatID, messageIDtoReplace, sb.String())
+	}
 }
 
 func renderPublicPrivateButtons(bot *tgbotapi.BotAPI, chatID int64, messageID int) {
@@ -443,10 +474,26 @@ func sendMsg(bot *tgbotapi.BotAPI, chatID int64, textMarkdown string) (tgbotapi.
 	return resp, err
 }
 
-func renderCloseButton(bot *tgbotapi.BotAPI, chatID int64, messageID int) {
+// simply send a message to bot in Markdown format
+func updateMsg(bot *tgbotapi.BotAPI, chatID int64, messageIDtoReplace int, textMarkdown string) (tgbotapi.Message, error) {
+	msg := tgbotapi.NewEditMessageText(chatID, messageIDtoReplace, textMarkdown)
+	msg.ParseMode = "MarkdownV2"
+	msg.DisableWebPagePreview = true
+
+	resp, err := bot.Send(msg)
+	if err != nil {
+		log.Println("bot.Send:", err, resp, textMarkdown)
+		return resp, err
+	}
+
+	return resp, err
+}
+
+func renderCloseUpdateButton(bot *tgbotapi.BotAPI, chatID int64, messageID int, command string) {
 	strMessageID := strconv.Itoa(messageID)
 
 	rowCloseButton := []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("🔄 Update", ButtonUpdateMsgPrefix+Separator+strMessageID+Separator+command),
 		tgbotapi.NewInlineKeyboardButtonData("❌ Close", ButtonDeleteMsgPrefix+Separator+strMessageID),
 	}
 
