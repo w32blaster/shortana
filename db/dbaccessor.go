@@ -226,3 +226,9 @@ func (d Database) SaveStatisticForOneView(ipAddress, requestedUrl, countryCode, 
 	foundView.ViewTimes = append(foundView.ViewTimes, now)
 	return d.db.Update(&foundView)
 }
+
+func (d Database) GetViewByID(ID int) (*OneViewStatistic, error) {
+	var view OneViewStatistic
+	err := d.db.One("ID", ID, &view)
+	return &view, err
+}

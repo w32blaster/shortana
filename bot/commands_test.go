@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestCommandParsing(t *testing.T) {
+func TestCommandParsingCommandForOneDay(t *testing.T) {
 
 	// When:
 	shortUrlID, dayDate, err := extractIdAndDate("stats5x20201201")

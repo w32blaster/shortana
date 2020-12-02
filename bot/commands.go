@@ -30,16 +30,22 @@ const (
 var (
 	patternCommandStatsForURL       = regexp.MustCompile(`^(stats)(\d+)$`)
 	patternCommandStatsForURLOneDay = regexp.MustCompile(`^stats(\d+)x(\d{8})$`)
+	patternCommandStatsOneView      = regexp.MustCompile(`^stats(\d+)x(\d{8})x(\d+)$`)
+	patternCommandStatsView         = regexp.MustCompile(`^(view)(\d+)$`)
 
 	funcMap = template.FuncMap{
 		"markdownEscape": markdownEscape,
+		"formatDate": func(dateTime time.Time) string {
+			return markdownEscape(dateTime.Format(time.RFC822))
+		},
 	}
 )
 
 type (
 	StatsForURLOneDay struct {
-		Views    []db.OneViewStatistic
-		ShortURL db.ShortURL
+		Views           []db.OneViewStatistic
+		ShortURL        db.ShortURL
+		ExistingCommand string
 	}
 
 	StatsGroupedByURLData struct {
@@ -65,7 +71,7 @@ type (
 
 func (c *Command) NotAllowedToSpeak(message *tgbotapi.Message) {
 	chatID := message.Chat.ID
-	sendMsg(c.bot, chatID, "Sorry, "+message.From.UserName+", I can't talk to you")
+	sendEscMsg(c.bot, chatID, "Sorry, "+message.From.UserName+", I can't talk to you")
 }
 
 // ProcessCommands acts when user sent to a bot some command, for example "/command arg1 arg2"
@@ -78,7 +84,7 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	switch command {
 
 	case "start":
-		sendMsg(c.bot, chatID, "Yay! Welcome! I can work with Shortana and manage your shortened URLs pretty easy")
+		sendEscMsg(c.bot, chatID, "Yay! Welcome! I can work with Shortana and manage your shortened URLs pretty easy")
 
 	case "list":
 		renderShortenedURLsList(c.bot, chatID, c.db, c.hostname)
@@ -89,12 +95,12 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	case "download":
 		fnOnUpdate := func(msg string) {
 			msg = strings.Replace(msg, "/", " ", -1)
-			sendMsg(c.bot, chatID, msg)
+			sendEscMsg(c.bot, chatID, msg)
 		}
 		if err := c.geoIP.DownloadGeoIPDatabase(fnOnUpdate); err != nil {
-			sendMsg(c.bot, chatID, "Database update failed, reason is "+err.Error())
+			sendEscMsg(c.bot, chatID, "Database update failed, reason is "+err.Error())
 		}
-		sendMsg(c.bot, chatID, "Yay! Database was updated properly")
+		sendEscMsg(c.bot, chatID, "Yay! Database was updated properly")
 
 	default:
 		if strings.HasPrefix(command, "stats") {
@@ -112,9 +118,18 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 				c.getStatisticOneURLOneDay(chatID, command)
 			}
 
-		} else {
-			sendMsg(c.bot, chatID, "Sorry, I don't recognyze such command: "+command+", please call /help to get full list of commands I understand")
+			return
 		}
+
+		if patternCommandStatsView.MatchString(command) {
+
+			// print data for one single visit
+			c.getStatisticOneView(chatID, command)
+			return
+		}
+
+		sendEscMsg(c.bot, chatID, "Sorry, I don't recognyze such command: "+command+", please call /help to get full list of commands I understand")
+
 	}
 }
 
@@ -122,7 +137,7 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 // internal variable "step"
 func (c *Command) initiateAdding(chatID int64) {
 	c.step = RequestedShortenedUrl
-	sendMsg(c.bot, chatID, "Ok, can you send me the short url please? Send me just suffix without a hostname")
+	sendEscMsg(c.bot, chatID, "Ok, can you send me the short url please? Send me just suffix without a hostname")
 }
 
 func (c *Command) ProcessSimpleText(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
@@ -133,37 +148,37 @@ func (c *Command) ProcessSimpleText(bot *tgbotapi.BotAPI, message *tgbotapi.Mess
 	case RequestedShortenedUrl:
 		if err := c.db.SaveShortUrlObject(&db.ShortURL{ShortUrl: message.Text, IsPublic: false}); err != nil {
 			c.step = None
-			sendMsg(c.bot, chatID, "Sorry, I tried to save your short URL but failed. "+
+			sendEscMsg(c.bot, chatID, "Sorry, I tried to save your short URL but failed. "+
 				"Can you start from beginning please?")
 			log.Println("Failed to save a new short link, error " + err.Error())
 			return
 		}
 		c.halfSavedShortID = message.Text
 		c.step = RequestedTargetLink
-		sendMsg(c.bot, chatID, "Ok, can you send me the full target URL where the short URL will lead to?")
+		sendEscMsg(c.bot, chatID, "Ok, can you send me the full target URL where the short URL will lead to?")
 
 	// step 2: a new short URL is saved with only one value and a target link was requested
 	case RequestedTargetLink:
 
 		if len(message.Text) == 0 || !strings.HasPrefix(message.Text, "http") {
-			sendMsg(c.bot, chatID, "Incorrect value, please send me the full URL link, please")
+			sendEscMsg(c.bot, chatID, "Incorrect value, please send me the full URL link, please")
 			return
 		}
 
 		if err := c.db.UpdateShortUrl(c.halfSavedShortID, "TargetUrl", message.Text); err != nil {
-			sendMsg(c.bot, chatID, "Sorry, can't update TargetURL "+
+			sendEscMsg(c.bot, chatID, "Sorry, can't update TargetURL "+
 				"Can you send me once again please?")
 			log.Println("Failed to update a short link, error " + err.Error())
 			return
 		}
 
 		c.step = RequestedDescription
-		sendMsg(c.bot, chatID, "Nice one. Now send me the description, please?")
+		sendEscMsg(c.bot, chatID, "Nice one. Now send me the description, please?")
 
 	// step 3: description
 	case RequestedDescription:
 		if err := c.db.UpdateShortUrl(c.halfSavedShortID, "Description", message.Text); err != nil {
-			sendMsg(c.bot, chatID, "Sorry, can't update Description "+
+			sendEscMsg(c.bot, chatID, "Sorry, can't update Description "+
 				"Can you send me once again please?")
 			log.Println("Failed to update a short link, error " + err.Error())
 			return
@@ -185,7 +200,7 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	if c.step == RequestedButtonIsPrivateOrPublic {
 
 		if err := c.db.UpdateShortUrl(c.halfSavedShortID, "IsPublic", callbackQuery.Data == public); err != nil {
-			sendMsg(c.bot, callbackQuery.Message.Chat.ID, "Sorry, can't update short link "+
+			sendEscMsg(c.bot, callbackQuery.Message.Chat.ID, "Sorry, can't update short link "+
 				"Can you send me once again please?")
 			log.Println("Failed to update a short link, error " + err.Error())
 			return
@@ -203,6 +218,7 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	}
 }
 
+// parses command, like stats5x20201201x6; please refer to unit tests for examples
 func extractIdAndDate(command string) (int, time.Time, error) {
 	arrParts := patternCommandStatsForURLOneDay.FindStringSubmatch(command)
 	shortUrlID, err := strconv.Atoi(arrParts[1])
@@ -218,6 +234,35 @@ func extractIdAndDate(command string) (int, time.Time, error) {
 	}
 
 	return shortUrlID, dayDate, nil
+}
+
+func (c *Command) getStatisticOneView(chatID int64, command string) {
+
+	// extract ID
+	arrParts := patternCommandStatsView.FindStringSubmatch(command)
+	viewID, err := strconv.Atoi(arrParts[2])
+	if err != nil {
+		log.Printf("Cant extract ID from the %s command, error is %s", command, err.Error())
+		sendMsg(c.bot, chatID, "Cant parse command")
+		return
+	}
+
+	view, err := c.db.GetViewByID(viewID)
+	if err != nil {
+		log.Printf("View with ID=%d not found, error is %s", viewID, err.Error())
+		sendMsg(c.bot, chatID, "Cant find this view")
+		return
+	}
+
+	var sb strings.Builder
+	tplStatsOneDay := template.Must(template.New("view.md").Funcs(funcMap).ParseFiles("templates/view.md"))
+	if err := tplStatsOneDay.ExecuteTemplate(&sb, "view.md", view); err != nil {
+		log.Printf("error executing template, err is %s", err.Error())
+		sendMsg(c.bot, chatID, "Error parsing template")
+		return
+	}
+
+	sendMsg(c.bot, chatID, sb.String())
 }
 
 func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
@@ -236,8 +281,9 @@ func (c *Command) getStatisticOneURLOneDay(chatID int64, command string) {
 	}
 
 	statsData := StatsForURLOneDay{
-		Views:    statsDay,
-		ShortURL: *shortURL,
+		Views:           statsDay,
+		ShortURL:        *shortURL,
+		ExistingCommand: command,
 	}
 	var sb strings.Builder
 	tplStatsViews := template.Must(template.New("stats.one.day.md").Funcs(funcMap).ParseFiles("templates/stats.one.day.md"))
@@ -333,7 +379,7 @@ func renderShortenedURLsList(bot *tgbotapi.BotAPI, chatID int64, database *db.Da
 	var sb strings.Builder
 	for _, k := range shortenedUrls {
 
-		log.Println(k)
+		// log.Println(k)
 
 		sb.WriteString(strconv.Itoa(k.ID))
 		sb.WriteString(") [")
@@ -364,6 +410,10 @@ func extractCommand(rawCommand string) string {
 	command = strings.Split(command, " ")[0]
 
 	return command
+}
+
+func sendEscMsg(bot *tgbotapi.BotAPI, chatID int64, textMarkdown string) (tgbotapi.Message, error) {
+	return sendMsg(bot, chatID, markdownEscape(textMarkdown))
 }
 
 // simply send a message to bot in Markdown format
