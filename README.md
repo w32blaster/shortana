@@ -1,6 +1,17 @@
 # Shortana
-Just a simple plain URL shortener managed by Telegram bot. Using bot you can add, delete
-your short URLs and get a view statistics.
+Just a simple plain URL shortener managed by Telegram bot. 
+
+## Features
+- very fast and lightweight
+- saves simple visit statistics (visits count, country, city, User-Agent)
+- uses GeoLite2 data created by MaxMind to determine location by IP address
+- you are free to give any URL you prefer
+- self-hosted
+- provided with official ready [Docker container](https://hub.docker.com/repository/docker/w32blaster/shortana)
+- managed by Telegram Bot, that allows you to create a new URL, see statistics and update GeoIP database
+
+Here are few screenshots:
+
 
 To install Shortana to your server, you need:
 
