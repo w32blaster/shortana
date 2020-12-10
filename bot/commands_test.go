@@ -19,3 +19,23 @@ func TestCommandParsingCommandForOneDay(t *testing.T) {
 	expectedDate := time.Date(2020, time.December, 1, 0, 0, 0, 0, time.UTC)
 	assert.Equal(t, expectedDate, dayDate)
 }
+
+func TestCommandExtractIdFromDelete(t *testing.T) {
+
+	// When:
+	strID, intID := extractIDFromDeleteCommand("delete8")
+
+	// Then:
+	assert.Equal(t, "8", strID)
+	assert.Equal(t, 8, intID)
+}
+
+func TestCommandExtractIdFromDeleteBigNumber(t *testing.T) {
+
+	// When:
+	strID, intID := extractIDFromDeleteCommand("delete678904")
+
+	// Then:
+	assert.Equal(t, "678904", strID)
+	assert.Equal(t, 678904, intID)
+}

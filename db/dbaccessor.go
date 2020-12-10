@@ -5,6 +5,7 @@ import (
 	"github.com/asdine/storm/v3/codec/msgpack"
 	"github.com/asdine/storm/v3/q"
 	"go.etcd.io/bbolt"
+	"log"
 	"strings"
 	"time"
 )
@@ -94,6 +95,42 @@ func (d Database) GetUrlByID(ID int) (*ShortURL, error) {
 	var shortUrl ShortURL
 	err := d.db.One("ID", ID, &shortUrl)
 	return &shortUrl, err
+}
+
+func (d Database) DeleteShortURLandStats(ID int) error {
+	tx, err := d.db.Begin(true)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// get Short URL first
+	var shortUrl ShortURL
+	if err := tx.One("ID", ID, &shortUrl); err != nil {
+		return err
+	}
+
+	// get all its stat records
+	shortUrlPrefix := shortUrl.ShortUrl
+	var views []OneViewStatistic
+	tx.Find("ShortUrl", shortUrlPrefix, &views)
+
+	// delete all the stats
+	statsLen := len(views)
+	for _, view := range views {
+		if err := tx.DeleteStruct(&view); err != nil {
+			return err
+		}
+	}
+
+	// delete Short URL itself
+	if err := tx.DeleteStruct(&shortUrl); err != nil {
+		return err
+	}
+
+	log.Printf("Deleted %d records from stats and the '%s' URL itself", statsLen, shortUrlPrefix)
+
+	return tx.Commit()
 }
 
 func (d Database) GetStatisticsForOneURL(shortUrlID int) (*ShortURL, map[string]OneDaySummaryStatistics, error) {

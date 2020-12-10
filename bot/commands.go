@@ -28,6 +28,7 @@ const (
 	ButtonDeleteMsgPrefix = "dM" // for button "delete message"
 	ButtonUpdateMsgPrefix = "uM" // for button "update message"
 	ButtonDeleteURL       = "dU" // for button "delete URL"
+	ButtonCancelDelete    = "dc" // cancel delete
 	Separator             = "#"
 )
 
@@ -93,9 +94,6 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	case "list":
 		renderShortenedURLsList(c.bot, chatID, c.db, c.hostname)
 
-	case "delete":
-		c.printURLsToDelete(chatID)
-
 	case "add":
 		c.initiateAdding(chatID)
 
@@ -111,6 +109,11 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 	default:
 		if strings.HasPrefix(command, "stats") {
 			c.renderStats(command, chatID, "")
+			return
+		}
+
+		if strings.HasPrefix(command, "delete") {
+			c.renderAreYouSureDelete(command, chatID)
 			return
 		}
 
@@ -239,7 +242,7 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 
 	// expected data is "command # date", for example
 	parts := strings.Split(callbackQuery.Data, Separator)
-	if parts[0] == ButtonDeleteMsgPrefix {
+	if parts[0] == ButtonDeleteMsgPrefix || parts[0] == ButtonCancelDelete {
 
 		// delete message
 		deleteMessage(c.bot, callbackQuery.Message.Chat.ID, parts[1])
@@ -247,9 +250,11 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 
 		// update message
 		c.renderStats(parts[2], callbackQuery.Message.Chat.ID, parts[1])
-	}
+	} else if parts[0] == ButtonDeleteURL {
 
-	// else if ButtonDeleteURL
+		// cancel deleting and remove message
+		c.deleteShortUrlAndStats(callbackQuery.Message.Chat.ID, parts[1], parts[2])
+	}
 }
 
 // parses command, like stats5x20201201x6; please refer to unit tests for examples
@@ -396,30 +401,51 @@ func (c *Command) printStatisticSummary(chatID int64, messageIDtoReplace int) {
 	}
 }
 
-func (c *Command) printURLsToDelete(chatID int64) {
-	shortenedUrls, err := c.db.GetAll()
+func (c *Command) renderAreYouSureDelete(command string, chatID int64) {
+
+	// get Short URL from the db
+	strShortID, shortUrlID := extractIDFromDeleteCommand(command)
+	shortUrl, err := c.db.GetUrlByID(shortUrlID)
 	if err != nil {
-		sendMsg(c.bot, chatID, "something wrong happened")
-		log.Println("Error reading the database, " + err.Error())
+		log.Println("can't find short URL, err: " + err.Error())
+		sendMsg(c.bot, chatID, "Cant find this url in a db")
+		return
 	}
+	resp, _ := sendEscMsg(c.bot, chatID, "Are you sure you want to delete the '"+
+		shortUrl.ShortUrl+"' and all its statistics?")
 
-	if len(shortenedUrls) == 0 {
-		sendMsg(c.bot, chatID, "no short URLs yet. You can add a new one by hitting /add command")
+	// render buttons "yes" and "no"
+	buttonRows := make([][]tgbotapi.InlineKeyboardButton, 1)
+	buttonRows[0] = []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("✋ Wait, no!", ButtonCancelDelete+Separator+strconv.Itoa(resp.MessageID)),
+		tgbotapi.NewInlineKeyboardButtonData("🗑️ Yes, delete it", ButtonDeleteURL+Separator+strconv.Itoa(resp.MessageID)+Separator+strShortID),
 	}
-
-	// render buttons "delete URL"
-	rowCloseButton := make([][]tgbotapi.InlineKeyboardButton, len(shortenedUrls))
-	for i, k := range shortenedUrls {
-		rowCloseButton[i] = []tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardButtonData("❌ "+markdownEscape(k.ShortUrl), ButtonDeleteURL+Separator+strconv.Itoa(k.ID)),
-		}
-	}
-
-	resp, _ := sendEscMsg(c.bot, chatID, "Select Short URL to delete")
-
-	keyboard := tgbotapi.NewInlineKeyboardMarkup(rowCloseButton...)
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(buttonRows...)
 	keyboardMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, resp.MessageID, keyboard)
 	c.bot.Send(keyboardMsg)
+}
+
+func (c *Command) deleteShortUrlAndStats(chatID int64, messageIDToReplace, strShortUrlID string) {
+
+	intMessageID, err := strconv.Atoi(messageIDToReplace)
+	if err != nil {
+		sendMsg(c.bot, chatID, "Error parsing message ID")
+		return
+	}
+
+	intShortID, err := strconv.Atoi(strShortUrlID)
+	if err != nil {
+		sendMsg(c.bot, chatID, "Error parsing short URL ID")
+		return
+	}
+
+	if err := c.db.DeleteShortURLandStats(intShortID); err != nil {
+		sendMsg(c.bot, chatID, "Error deleting short URL")
+		log.Println("Error deleting of the ShortURL, err: " + err.Error())
+		return
+	}
+
+	updateMsg(c.bot, chatID, intMessageID, "Short URL and its stats were deleted")
 }
 
 func renderPublicPrivateButtons(bot *tgbotapi.BotAPI, chatID int64, messageID int) {
@@ -453,10 +479,21 @@ func renderShortenedURLsList(bot *tgbotapi.BotAPI, chatID int64, database *db.Da
 		sb.WriteString(markdownEscape(k.ShortUrl))
 		sb.WriteString("](")
 		sb.WriteString(markdownEscapeUrl(k.TargetUrl))
-		sb.WriteString(")")
+		sb.WriteString(") /delete")
+		sb.WriteString(strconv.Itoa(k.ID))
 		sb.WriteString("\n")
 	}
 	sendMsg(bot, chatID, sb.String())
+}
+
+func extractIDFromDeleteCommand(deleteCommand string) (string, int) {
+	strID := deleteCommand[6:]
+	if intID, err := strconv.Atoi(strID); err != nil {
+		log.Printf("error, can't parse ID %s from command %s, error is %s", strID, deleteCommand, err.Error())
+		return "", 0
+	} else {
+		return strID, intID
+	}
 }
 
 // properly extracts command from the input string, removing all unnecessary parts
