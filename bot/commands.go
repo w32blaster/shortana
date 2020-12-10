@@ -27,6 +27,7 @@ const (
 	public                = "p"
 	ButtonDeleteMsgPrefix = "dM" // for button "delete message"
 	ButtonUpdateMsgPrefix = "uM" // for button "update message"
+	ButtonDeleteURL       = "dU" // for button "delete URL"
 	Separator             = "#"
 )
 
@@ -91,6 +92,9 @@ func (c *Command) ProcessCommands(message *tgbotapi.Message) {
 
 	case "list":
 		renderShortenedURLsList(c.bot, chatID, c.db, c.hostname)
+
+	case "delete":
+		c.printURLsToDelete(chatID)
 
 	case "add":
 		c.initiateAdding(chatID)
@@ -244,6 +248,8 @@ func (c *Command) ProcessButtonCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		// update message
 		c.renderStats(parts[2], callbackQuery.Message.Chat.ID, parts[1])
 	}
+
+	// else if ButtonDeleteURL
 }
 
 // parses command, like stats5x20201201x6; please refer to unit tests for examples
@@ -388,6 +394,32 @@ func (c *Command) printStatisticSummary(chatID int64, messageIDtoReplace int) {
 	} else {
 		updateMsg(c.bot, chatID, messageIDtoReplace, output)
 	}
+}
+
+func (c *Command) printURLsToDelete(chatID int64) {
+	shortenedUrls, err := c.db.GetAll()
+	if err != nil {
+		sendMsg(c.bot, chatID, "something wrong happened")
+		log.Println("Error reading the database, " + err.Error())
+	}
+
+	if len(shortenedUrls) == 0 {
+		sendMsg(c.bot, chatID, "no short URLs yet. You can add a new one by hitting /add command")
+	}
+
+	// render buttons "delete URL"
+	rowCloseButton := make([][]tgbotapi.InlineKeyboardButton, len(shortenedUrls))
+	for i, k := range shortenedUrls {
+		rowCloseButton[i] = []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("❌ "+markdownEscape(k.ShortUrl), ButtonDeleteURL+Separator+strconv.Itoa(k.ID)),
+		}
+	}
+
+	resp, _ := sendEscMsg(c.bot, chatID, "Select Short URL to delete")
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(rowCloseButton...)
+	keyboardMsg := tgbotapi.NewEditMessageReplyMarkup(chatID, resp.MessageID, keyboard)
+	c.bot.Send(keyboardMsg)
 }
 
 func renderPublicPrivateButtons(bot *tgbotapi.BotAPI, chatID int64, messageID int) {
