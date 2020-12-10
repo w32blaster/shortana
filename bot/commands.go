@@ -282,16 +282,15 @@ func (c *Command) getStatisticOneView(chatID int64, command string) {
 		return
 	}
 
-	var sb strings.Builder
-	tplStatsOneDay := template.Must(template.New("view.md").Funcs(funcMap).ParseFiles("templates/view.md"))
-	if err := tplStatsOneDay.ExecuteTemplate(&sb, "view.md", view); err != nil {
-		log.Printf("error executing template, err is %s", err.Error())
-		sendMsg(c.bot, chatID, "Error parsing template")
+	output, ok := renderTemplate(c.bot, chatID, "view.md", view)
+	if !ok {
 		return
 	}
 
-	resp, _ := sendMsg(c.bot, chatID, sb.String())
-	renderCloseUpdateButton(c.bot, chatID, resp.MessageID, command)
+	resp, _ := sendMsg(c.bot, chatID, output)
+
+	dayDate, _ := time.Parse(db.DayFormat, view.Day)
+	renderCloseUpdateButton(c.bot, chatID, resp.MessageID, command, dayDate)
 }
 
 func (c *Command) getStatisticOneURLOneDay(chatID int64, command string, messageIDtoReplace int) {
@@ -314,21 +313,20 @@ func (c *Command) getStatisticOneURLOneDay(chatID int64, command string, message
 		ShortURL:     *shortURL,
 		SelectedDate: dayDate.Format(db.DayFormat),
 	}
-	var sb strings.Builder
-	tplStatsViews := template.Must(template.New("stats.one.day.md").Funcs(funcMap).ParseFiles("templates/stats.one.day.md"))
-	if err := tplStatsViews.ExecuteTemplate(&sb, "stats.one.day.md", statsData); err != nil {
-		log.Printf("error executing template, err is %s", err.Error())
-		sendMsg(c.bot, chatID, "Error parsing template")
+
+	output, ok := renderTemplate(c.bot, chatID, "stats.one.day.md", statsData)
+	if !ok {
 		return
 	}
 
 	var resp tgbotapi.Message
 	if messageIDtoReplace == 0 {
-		resp, _ = sendMsg(c.bot, chatID, sb.String())
+		resp, _ = sendMsg(c.bot, chatID, output)
 	} else {
-		resp, _ = updateMsg(c.bot, chatID, messageIDtoReplace, sb.String())
+		resp, _ = updateMsg(c.bot, chatID, messageIDtoReplace, output)
 	}
-	renderCloseUpdateButton(c.bot, chatID, resp.MessageID, command)
+
+	renderCloseUpdateButton(c.bot, chatID, resp.MessageID, command, dayDate)
 }
 
 func (c *Command) getStatisticOneURL(chatID int64, command string, messageIDtoReplace int) {
@@ -354,24 +352,20 @@ func (c *Command) getStatisticOneURL(chatID int64, command string, messageIDtoRe
 		Stats:    views,
 		ShortURL: *sURL,
 	}
-	var sb strings.Builder
-	tplStatsOneDay := template.Must(template.New("stats.one.url.md").Funcs(funcMap).ParseFiles("templates/stats.one.url.md"))
-	if err := tplStatsOneDay.ExecuteTemplate(&sb, "stats.one.url.md", statsData); err != nil {
-		log.Printf("error executing template, err is %s", err.Error())
-		sendMsg(c.bot, chatID, "Error parsing template")
+	output, ok := renderTemplate(c.bot, chatID, "stats.one.url.md", statsData)
+	if !ok {
 		return
 	}
 
 	if messageIDtoReplace == 0 {
-		sendMsg(c.bot, chatID, sb.String())
+		sendMsg(c.bot, chatID, output)
 	} else {
-		updateMsg(c.bot, chatID, messageIDtoReplace, sb.String())
+		updateMsg(c.bot, chatID, messageIDtoReplace, output)
 	}
 }
 
 func (c *Command) printStatisticSummary(chatID int64, messageIDtoReplace int) {
 
-	var sb strings.Builder
 	stats, err := c.db.GetAllStatisticsGroupedByURLs()
 	if err != nil {
 		log.Printf("Error getting grouped stats, err is %s", err.Error())
@@ -383,19 +377,16 @@ func (c *Command) printStatisticSummary(chatID int64, messageIDtoReplace int) {
 		Stats:    stats,
 		Hostname: c.hostname,
 	}
-
-	tplStats := template.Must(template.New("stats.md").Funcs(funcMap).ParseFiles("templates/stats.md"))
-	if err := tplStats.ExecuteTemplate(&sb, "stats.md", statsData); err != nil {
-		log.Printf("error executing template, err is %s", err.Error())
-		sendMsg(c.bot, chatID, "Error parsing template")
+	output, ok := renderTemplate(c.bot, chatID, "stats.md", statsData)
+	if !ok {
 		return
 	}
 
 	if messageIDtoReplace == 0 {
-		sendMsg(c.bot, chatID, sb.String())
+		sendMsg(c.bot, chatID, output)
 		return
 	} else {
-		updateMsg(c.bot, chatID, messageIDtoReplace, sb.String())
+		updateMsg(c.bot, chatID, messageIDtoReplace, output)
 	}
 }
 
@@ -489,12 +480,26 @@ func updateMsg(bot *tgbotapi.BotAPI, chatID int64, messageIDtoReplace int, textM
 	return resp, err
 }
 
-func renderCloseUpdateButton(bot *tgbotapi.BotAPI, chatID int64, messageID int, command string) {
+func renderTemplate(bot *tgbotapi.BotAPI, chatID int64, templateFileName string, data interface{}) (string, bool) {
+	var sb strings.Builder
+	tplStatsOneDay := template.Must(template.New(templateFileName).Funcs(funcMap).ParseFiles("templates/" + templateFileName))
+	if err := tplStatsOneDay.ExecuteTemplate(&sb, templateFileName, data); err != nil {
+		log.Printf("error executing template %s, err is %s", templateFileName, err.Error())
+		sendMsg(bot, chatID, "Error parsing template")
+		return "", false
+	}
+	return sb.String(), true
+}
+
+func renderCloseUpdateButton(bot *tgbotapi.BotAPI, chatID int64, messageID int, command string, dateMidnight time.Time) {
 	strMessageID := strconv.Itoa(messageID)
 
 	rowCloseButton := []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("🔄 Update", ButtonUpdateMsgPrefix+Separator+strMessageID+Separator+command),
 		tgbotapi.NewInlineKeyboardButtonData("❌ Close", ButtonDeleteMsgPrefix+Separator+strMessageID),
+	}
+
+	if time.Since(dateMidnight).Hours() < 24 {
+		rowCloseButton = append(rowCloseButton, tgbotapi.NewInlineKeyboardButtonData("🔄 Update", ButtonUpdateMsgPrefix+Separator+strMessageID+Separator+command))
 	}
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(rowCloseButton)
